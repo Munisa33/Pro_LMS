@@ -1,0 +1,109 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "Lesson_Progress.-.######",
+ "creation": "2026-02-28 08:16:29.825908",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "employee",
+  "lesson",
+  "enrollment",
+  "watch_time_sec",
+  "last_position_sec",
+  "completion_percent",
+  "is_completed",
+  "completed_on",
+  "skip_attempts",
+  "session_logs"
+ ],
+ "fields": [
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1
+  },
+  {
+   "fieldname": "lesson",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Lesson",
+   "options": "LMS Lesson",
+   "reqd": 1
+  },
+  {
+   "fieldname": "enrollment",
+   "fieldtype": "Link",
+   "label": "Enrollment",
+   "options": "LMS Enrollment"
+  },
+  {
+   "fieldname": "watch_time_sec",
+   "fieldtype": "Int",
+   "label": "Watch Time Sec"
+  },
+  {
+   "fieldname": "last_position_sec",
+   "fieldtype": "Int",
+   "label": "Last Position Sec"
+  },
+  {
+   "fieldname": "completion_percent",
+   "fieldtype": "Float",
+   "label": "Completion Percent"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_completed",
+   "fieldtype": "Check",
+   "label": "Is Completed"
+  },
+  {
+   "fieldname": "completed_on",
+   "fieldtype": "Datetime",
+   "label": "Completed On"
+  },
+  {
+   "fieldname": "skip_attempts",
+   "fieldtype": "Int",
+   "label": "Skip Attempts"
+  },
+  {
+   "fieldname": "session_logs",
+   "fieldtype": "JSON",
+   "label": "Session Logs",
+   "options": "{start, end, timestamp}"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-03-03 21:17:49.970688",
+ "modified_by": "Administrator",
+ "module": "LMS for DBR",
+ "name": "LMS Lesson Progress",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

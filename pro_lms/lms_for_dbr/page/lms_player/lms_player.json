@@ -1,0 +1,15 @@
+{
+ "doctype": "Page",
+ "module": "LMS for DBR",
+ "name": "lms-player",
+ "page_name": "lms-player",
+ "title": "LMS Player",
+ "roles": [
+  {
+   "role": "Employee"
+  },
+  {
+   "role": "System Manager"
+  }
+ ]
+}

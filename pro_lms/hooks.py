@@ -7,7 +7,18 @@ app_license = "mit"
 
 # Apps
 # ------------------
+doc_events = {
+    "LMS Lesson Progress": {
+        "before_insert": "pro_lms.lms_for_dbr.api.progress_api.validate_lesson_access",
+        "after_insert":  "pro_lms.lms_for_dbr.api.init_progress_record",
+    }
+}
 
+scheduler_events = {
+    "daily": [
+        "pro_lms.lms_for_dbr.api.send_inactivity_reminders"
+    ]
+}
 # required_apps = []
 
 # Each item in the list will be shown as an app in the apps page
@@ -25,7 +36,11 @@ app_license = "mit"
 # ------------------
 
 # include js, css files in header of desk.html
-# app_include_css = "/assets/pro_lms/css/pro_lms.css"
+app_include_css = [
+    "/assets/pro_lms/css/lms_admin.css",
+    "/assets/pro_lms/css/lms_dashboard.css",
+    "/assets/pro_lms/css/lms_player.css",
+]
 # app_include_js = "/assets/pro_lms/js/pro_lms.js"
 
 # include js, css files in header of web template

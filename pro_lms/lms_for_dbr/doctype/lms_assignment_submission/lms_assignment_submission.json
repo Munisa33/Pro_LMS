@@ -1,0 +1,111 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "Assignment_Submission.-.######",
+ "creation": "2026-02-26 15:36:24.676286",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "employee",
+  "lesson",
+  "submission_type",
+  "attached_file",
+  "google_sheets_url",
+  "submitted_on",
+  "status",
+  "admin_score",
+  "admin_feedback",
+  "reviewed_by",
+  "reviewed_on"
+ ],
+ "fields": [
+  {
+   "fieldname": "lesson",
+   "fieldtype": "Link",
+   "label": "Lesson",
+   "options": "LMS Lesson"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Pending\nReviewed\nApproved\nRejected"
+  },
+  {
+   "fieldname": "admin_feedback",
+   "fieldtype": "Small Text",
+   "label": "Admin Feedback"
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee"
+  },
+  {
+   "fieldname": "submission_type",
+   "fieldtype": "Select",
+   "label": "Submission Type",
+   "options": "File\nGoogle Sheets\nExcel"
+  },
+  {
+   "fieldname": "attached_file",
+   "fieldtype": "Attach",
+   "label": "Attached File"
+  },
+  {
+   "fieldname": "google_sheets_url",
+   "fieldtype": "Data",
+   "label": "Google Sheets Url"
+  },
+  {
+   "fieldname": "submitted_on",
+   "fieldtype": "Datetime",
+   "label": "Submitted On"
+  },
+  {
+   "fieldname": "admin_score",
+   "fieldtype": "Float",
+   "label": "Admin Score"
+  },
+  {
+   "fieldname": "reviewed_by",
+   "fieldtype": "Link",
+   "label": "Reviewed By",
+   "options": "User"
+  },
+  {
+   "fieldname": "reviewed_on",
+   "fieldtype": "Datetime",
+   "label": "Reviewed On"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-03-03 21:15:19.665373",
+ "modified_by": "Administrator",
+ "module": "LMS for DBR",
+ "name": "LMS Assignment Submission",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

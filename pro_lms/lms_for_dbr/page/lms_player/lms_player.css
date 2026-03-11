@@ -1,0 +1,429 @@
+
+/* ================================================================
+   LMS Player — Dark Cinema CSS  (lp- prefix)
+   ================================================================ */
+
+/* Base */
+.lp-page {
+display: flex;
+flex-direction: column;
+min-height: calc(100vh - 60px);
+background: linear-gradient(135deg, #0f0c29 0%, #1a1a3e 50%, #16213e 100%);
+color: #fff;
+font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* ── Top Bar ── */
+.lp-topbar {
+display: flex;
+justify-content: space-between;
+align-items: center;
+padding: 12px 20px;
+background: rgba(15, 12, 41, 0.95);
+backdrop-filter: blur(12px);
+border-bottom: 1px solid rgba(255,255,255,0.08);
+position: sticky;
+top: 0;
+z-index: 200;
+}
+.lp-topbar-left,
+.lp-topbar-right {
+display: flex;
+align-items: center;
+gap: 12px;
+}
+.lp-lesson-title {
+font-size: 15px;
+font-weight: 600;
+max-width: 380px;
+white-space: nowrap;
+overflow: hidden;
+text-overflow: ellipsis;
+}
+.lp-pct-badge {
+background: linear-gradient(135deg, #6366f1, #8b5cf6);
+padding: 4px 12px;
+border-radius: 20px;
+font-size: 12px;
+font-weight: 700;
+}
+.lp-icon-btn {
+background: rgba(255,255,255,0.08);
+border: 1px solid rgba(255,255,255,0.12);
+color: #fff;
+padding: 6px 12px;
+border-radius: 8px;
+cursor: pointer;
+font-size: 13px;
+font-weight: 500;
+transition: background 0.2s;
+white-space: nowrap;
+}
+.lp-icon-btn:hover {
+background: rgba(99,102,241,0.3);
+border-color: #6366f1;
+}
+
+/* ── Main layout ── */
+.lp-main {
+display: flex;
+flex: 1;
+overflow: hidden;
+}
+.lp-left {
+flex: 1;
+display: flex;
+flex-direction: column;
+min-width: 0;
+}
+
+/* ── Video ── */
+.lp-video-container {
+position: relative;
+width: 100%;
+background: #000;
+aspect-ratio: 16 / 9;
+overflow: hidden;
+}
+/* IFrame API mount point — must fill the container absolutely */
+#lp-yt-mount,
+#lp-yt-mount iframe {
+position: absolute;
+top: 0; left: 0;
+width: 100% !important;
+height: 100% !important;
+border: none;
+}
+.lp-video-container video,
+.lp-video-container iframe {
+width: 100%;
+height: 100%;
+display: block;
+object-fit: contain;
+}
+/* ── No-video alert ── */
+.lp-no-video {
+display: flex;
+align-items: center;
+justify-content: center;
+aspect-ratio: 16/9;
+background: linear-gradient(135deg, #1a1a2e, #16213e);
+border: 1px dashed rgba(99,102,241,0.3);
+border-radius: 8px;
+}
+.lp-no-video-inner {
+text-align: center;
+padding: 32px;
+}
+.lp-no-video-icon {
+font-size: 48px;
+display: block;
+margin-bottom: 12px;
+opacity: 0.5;
+}
+.lp-no-video-title {
+font-size: 18px;
+font-weight: 700;
+color: rgba(255,255,255,0.8);
+margin: 0 0 8px;
+}
+.lp-no-video-sub {
+font-size: 13px;
+color: rgba(255,255,255,0.4);
+margin: 0;
+line-height: 1.6;
+}
+
+/* Lock overlay */
+.lp-lock-overlay {
+position: absolute;
+inset: 0;
+display: flex;
+align-items: center;
+justify-content: center;
+background: rgba(0,0,0,0.6);
+backdrop-filter: blur(4px);
+z-index: 30;
+}
+.lp-lock-msg {
+background: rgba(239,68,68,0.92);
+padding: 16px 28px;
+border-radius: 10px;
+font-size: 15px;
+font-weight: 600;
+text-align: center;
+}
+
+/* Progress line */
+.lp-progress-line {
+height: 4px;
+background: rgba(255,255,255,0.1);
+}
+.lp-progress-fill {
+height: 100%;
+background: linear-gradient(90deg, #6366f1, #8b5cf6);
+transition: width 0.4s linear;
+}
+
+/* ── Info bar ── */
+.lp-info-bar {
+display: flex;
+align-items: center;
+gap: 24px;
+padding: 14px 20px;
+background: rgba(31,41,55,0.85);
+border-top: 1px solid rgba(255,255,255,0.07);
+flex-wrap: wrap;
+}
+.lp-stat {
+display: flex;
+flex-direction: column;
+gap: 2px;
+}
+.lp-stat-label {
+font-size: 11px;
+color: rgba(255,255,255,0.5);
+text-transform: uppercase;
+letter-spacing: 0.5px;
+}
+.lp-stat-value {
+font-size: 18px;
+font-weight: 700;
+}
+.lp-done-badge {
+background: rgba(16,185,129,0.2);
+color: #10b981;
+border: 1px solid rgba(16,185,129,0.4);
+padding: 4px 12px;
+border-radius: 20px;
+font-size: 12px;
+font-weight: 600;
+}
+.lp-actions {
+margin-left: auto;
+display: flex;
+gap: 10px;
+}
+.lp-btn {
+padding: 8px 18px;
+border: none;
+border-radius: 8px;
+font-size: 13px;
+font-weight: 600;
+cursor: pointer;
+transition: all 0.2s;
+}
+.lp-btn-primary {
+background: linear-gradient(135deg, #6366f1, #8b5cf6);
+color: #fff;
+}
+.lp-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(99,102,241,0.4); }
+.lp-btn-secondary {
+background: rgba(99,102,241,0.15);
+color: #a5b4fc;
+border: 1px solid rgba(99,102,241,0.3);
+}
+.lp-btn-secondary:hover { background: rgba(99,102,241,0.3); }
+
+/* ── Sidebar ── */
+.lp-sidebar {
+width: 290px;
+flex-shrink: 0;
+background: rgba(15,12,41,0.98);
+border-left: 1px solid rgba(255,255,255,0.08);
+display: flex;
+flex-direction: column;
+overflow-y: auto;
+transition: width 0.3s ease, opacity 0.3s ease;
+}
+.lp-sidebar.lp-sidebar--hidden {
+width: 0;
+overflow: hidden;
+opacity: 0;
+border-left: none;
+}
+.lp-s-hdr {
+display: flex;
+justify-content: space-between;
+align-items: center;
+padding: 14px 16px;
+font-size: 12px;
+font-weight: 700;
+text-transform: uppercase;
+letter-spacing: 1px;
+border-bottom: 1px solid rgba(255,255,255,0.07);
+position: sticky;
+top: 0;
+background: rgba(15,12,41,0.98);
+z-index: 10;
+}
+.lp-s-body {
+flex: 1;
+overflow-y: auto;
+}
+
+/* Sections */
+.lp-s-section { border-bottom: 1px solid rgba(255,255,255,0.05); }
+.lp-s-sec-hdr {
+padding: 11px 14px;
+cursor: pointer;
+font-size: 12px;
+font-weight: 600;
+color: rgba(255,255,255,0.6);
+text-transform: uppercase;
+letter-spacing: 0.5px;
+display: flex;
+align-items: center;
+gap: 8px;
+background: rgba(255,255,255,0.03);
+transition: background 0.2s;
+user-select: none;
+}
+.lp-s-sec-hdr:hover { background: rgba(99,102,241,0.12); color: #fff; }
+.lp-s-section.lp-s-section--closed .lp-s-lessons { display: none; }
+
+/* Lessons */
+.lp-s-lessons { display: flex; flex-direction: column; }
+.lp-s-lesson {
+padding: 10px 14px 10px 24px;
+display: flex;
+align-items: center;
+gap: 10px;
+cursor: pointer;
+font-size: 13px;
+color: rgba(255,255,255,0.65);
+border-left: 3px solid transparent;
+transition: all 0.15s;
+}
+.lp-s-lesson:hover {
+background: rgba(99,102,241,0.12);
+border-left-color: #6366f1;
+color: #fff;
+}
+.lp-s-lesson--active {
+background: rgba(99,102,241,0.2);
+border-left-color: #6366f1;
+color: #fff;
+font-weight: 600;
+}
+.lp-s-lesson--locked {
+opacity: 0.45;
+cursor: not-allowed;
+}
+.lp-s-icon { font-size: 14px; min-width: 22px; text-align: center; }
+.lp-s-text { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── Cinema mode ── */
+.lp-page--cinema .lp-topbar { opacity: 0; pointer-events: none; }
+.lp-page--cinema .lp-info-bar { display: none; }
+.lp-page--cinema .lp-sidebar { display: none; }
+
+/* ── Scrollbar ── */
+.lp-sidebar::-webkit-scrollbar,
+.lp-s-body::-webkit-scrollbar { width: 5px; }
+.lp-sidebar::-webkit-scrollbar-thumb,
+.lp-s-body::-webkit-scrollbar-thumb {
+background: rgba(99,102,241,0.4);
+border-radius: 3px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+.lp-main { flex-direction: column; }
+.lp-sidebar {
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    max-height: 45vh;
+}
+.lp-sidebar.lp-sidebar--hidden { width: 100%; max-height: 0; opacity: 0; }
+.lp-lesson-title { max-width: 200px; }
+}
+@media (max-width: 560px) {
+.lp-info-bar { gap: 14px; }
+.lp-actions { margin-left: 0; width: 100%; }
+.lp-btn { flex: 1; }
+.lp-lesson-title { max-width: 120px; font-size: 13px; }
+}
+
+/* ================================================================
+   LMS Quiz Modal  (lms-qz- prefix)
+   ================================================================ */
+.lms-quiz-wrap { padding: 4px 0 8px; }
+
+.lms-qz-topbar {
+display: flex;
+align-items: center;
+gap: 12px;
+margin-bottom: 20px;
+}
+.lms-qz-counter {
+font-size: 12px;
+font-weight: 600;
+color: #6366f1;
+white-space: nowrap;
+}
+.lms-qz-prog {
+flex: 1;
+height: 6px;
+background: rgba(99,102,241,0.15);
+border-radius: 99px;
+overflow: hidden;
+}
+.lms-qz-prog-fill {
+height: 100%;
+background: linear-gradient(90deg, #6366f1, #8b5cf6);
+border-radius: 99px;
+transition: width .3s ease;
+}
+.lms-qz-timer {
+font-size: 12px;
+font-weight: 700;
+color: #f59e0b;
+white-space: nowrap;
+}
+
+.lms-qz-question {
+font-size: 16px;
+font-weight: 600;
+line-height: 1.5;
+margin-bottom: 6px;
+color: var(--text-color, #1a1a3e);
+}
+.lms-qz-marks {
+font-size: 11px;
+color: #6366f1;
+font-weight: 600;
+margin-bottom: 16px;
+}
+
+.lms-qz-options { display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; }
+.lms-qz-opt {
+display: flex;
+align-items: center;
+gap: 12px;
+padding: 12px 16px;
+border: 2px solid rgba(99,102,241,0.2);
+border-radius: 10px;
+cursor: pointer;
+transition: all .18s ease;
+font-size: 14px;
+}
+.lms-qz-opt:hover { border-color: #6366f1; background: rgba(99,102,241,0.06); }
+.lms-qz-opt--selected {
+border-color: #6366f1;
+background: rgba(99,102,241,0.12);
+font-weight: 600;
+}
+.lms-qz-opt-radio {
+font-size: 16px;
+color: #6366f1;
+flex-shrink: 0;
+}
+
+.lms-qz-nav {
+display: flex;
+gap: 10px;
+justify-content: flex-end;
+padding-top: 4px;
+}

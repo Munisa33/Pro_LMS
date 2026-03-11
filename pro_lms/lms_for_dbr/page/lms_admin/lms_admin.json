@@ -1,0 +1,19 @@
+{
+ "content": null,
+ "creation": "2026-03-03 13:18:53.805186",
+ "docstatus": 0,
+ "doctype": "Page",
+ "idx": 0,
+ "modified": "2026-03-09 13:25:06.363238",
+ "modified_by": "Administrator",
+ "module": "LMS for DBR",
+ "name": "lms_admin",
+ "owner": "Administrator",
+ "page_name": "lms_admin",
+ "roles": [],
+ "script": null,
+ "standard": "Yes",
+ "style": null,
+ "system_page": 0,
+ "title": "LMS Admin"
+}
