@@ -1,0 +1,118 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "Time_log-.YYYY.-.MM.-.DD.-.#####",
+ "creation": "2026-03-11 09:54:24.921636",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "employee",
+  "course",
+  "lesson",
+  "column_break_ppfi",
+  "activity_type",
+  "end_reason",
+  "section_break_yxjf",
+  "session_start",
+  "session_end",
+  "duration_sec",
+  "column_break_hexd",
+  "is_completed_session"
+ ],
+ "fields": [
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1
+  },
+  {
+   "fieldname": "course",
+   "fieldtype": "Link",
+   "label": "Course",
+   "options": "LMS Course"
+  },
+  {
+   "fieldname": "lesson",
+   "fieldtype": "Link",
+   "label": "Lesson",
+   "options": "LMS Lesson"
+  },
+  {
+   "fieldname": "column_break_ppfi",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "activity_type",
+   "fieldtype": "Select",
+   "label": "Activity Type",
+   "options": "Video\nQuiz\nOpen Question\nReading"
+  },
+  {
+   "fieldname": "end_reason",
+   "fieldtype": "Select",
+   "label": "End Reason",
+   "options": "normal\ninactivity\nnavigation\nactivity_switch\npage_unload"
+  },
+  {
+   "fieldname": "section_break_yxjf",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "session_start",
+   "fieldtype": "Datetime",
+   "label": "Session Start",
+   "reqd": 1
+  },
+  {
+   "fieldname": "session_end",
+   "fieldtype": "Datetime",
+   "label": "Session End"
+  },
+  {
+   "fieldname": "duration_sec",
+   "fieldtype": "Int",
+   "label": "Duration (sec)"
+  },
+  {
+   "fieldname": "column_break_hexd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_completed_session",
+   "fieldtype": "Check",
+   "label": "Completed Session"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-03-11 10:24:05.460677",
+ "modified_by": "Administrator",
+ "module": "LMS for DBR",
+ "name": "LMS Time Log",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

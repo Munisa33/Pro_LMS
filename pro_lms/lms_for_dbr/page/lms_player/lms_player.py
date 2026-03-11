@@ -62,10 +62,10 @@ def get_lesson_data(lesson_name):
     lesson = frappe.db.get_all(
         "LMS Lesson",
         filters={"name": lesson_name},
-        fields=["name", "lesson_title", "course", "section", "type", 
+        fields=["name", "lesson_title", "course", "section", "type",
                 "youtube_id", "video_url", "video_duration_sec",
                 "has_quiz", "quiz", "has_assignment", "assignment_type",
-                "order_index"],
+                "order_index","has_open_questions", "open_question_set",  ],
         limit=1,
         ignore_permissions=True
     )
@@ -138,7 +138,7 @@ def get_lesson_data(lesson_name):
         order_by="order_index asc",
         ignore_permissions=True
     )
-    
+
     all_lessons = {}
     all_progs = {}
     if sections:
@@ -151,7 +151,7 @@ def get_lesson_data(lesson_name):
             ignore_permissions=True
         )
         all_lessons = {l["name"]: l for l in all_les}
-        
+
         all_pro = frappe.db.get_all(
             "LMS Lesson Progress",
             filters={"employee": emp_id, "lesson": ["in", list(all_lessons.keys())]},
@@ -172,7 +172,7 @@ def get_lesson_data(lesson_name):
             if les["section"] != sec["name"]:
                 continue
             p = all_progs.get(les_id, {})
-            
+
             # Lock: If previous incomplete, lock this
             is_this_locked = False
             if les["order_index"] > 0:
@@ -181,7 +181,7 @@ def get_lesson_data(lesson_name):
                 if prev_in_sec:
                     prev_id = prev_in_sec[-1]["name"]
                     is_this_locked = not (all_progs.get(prev_id, {}).get("is_completed", False))
-            
+
             sec_obj["lessons"].append({
                 "lesson_id": les_id,
                 "lesson_title": les["lesson_title"],
@@ -206,6 +206,8 @@ def get_lesson_data(lesson_name):
             "quiz": lesson.get("quiz"),
             "has_assignment": cint(lesson["has_assignment"]),
             "assignment_type": lesson.get("assignment_type"),
+			"has_open_questions": cint(lesson.get("has_open_questions", 0)),
+			"open_question_set": lesson.get("open_question_set"),
         },
         "progress": {
             "name": progress["name"] if progress else None,
@@ -634,3 +636,499 @@ def submit_quiz(quiz_name, lesson_name, answers, time_taken_sec=0):
         "attempt_number": attempt_count + 1,
         "answer_review": answer_review,
     }
+# ═══════════════════════════════════════════════════════════════════════════
+#  TIME TRACKING APIs
+#  Bu funksiyalarni mavjud lms_player.py fayliga qo'shing.
+#  Talab: "LMS Time Log" doctype avval yaratilgan bo'lishi kerak.
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+@frappe.whitelist()
+def start_session(lesson_name, activity_type="Video"):
+    """
+    Yangi o'quv sessiyasini boshlaydi.
+    Frontend har safar video/quiz/ochiq savol ochilganda chaqiradi.
+
+    Returns:
+        {"session_id": "LMS-TL-2026-00001"}
+    """
+    user = frappe.session.user
+    emp  = _get_employee(user)
+    if not emp:
+        return {"error": True, "message": "Employee topilmadi"}
+
+    emp_id = emp["name"]
+
+    lesson = frappe.db.get_value(
+        "LMS Lesson", lesson_name, ["course", "section"], as_dict=True
+    )
+    if not lesson:
+        return {"error": True, "message": "Dars topilmadi"}
+
+    course_id = lesson.get("course")
+    if not course_id and lesson.get("section"):
+        course_id = frappe.db.get_value("LMS Section", lesson["section"], "course")
+
+    doc = frappe.get_doc({
+        "doctype":              "LMS Time Log",
+        "employee":             emp_id,
+        "lesson":               lesson_name,
+        "course":               course_id or "",
+        "activity_type":        activity_type,
+        "session_start":        now(),
+        "session_end":          now(),
+        "duration_sec":         0,
+        "is_completed_session": 0,
+    })
+    doc.flags.ignore_permissions = True
+    doc.insert(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"error": False, "session_id": doc.name}
+
+
+@frappe.whitelist()
+def ping_session(session_id, activity_type=None):
+    """
+    30 soniyada bir chaqiriladi (heartbeat).
+    session_end = now() ga yangilaydi.
+    duration_sec = session_start dan hozirgacha bo'lgan farqni yozadi.
+    Agar session topilmasa — yangi session boshlanishi kerak deb bildiradi.
+    """
+    from frappe.utils import now_datetime, get_datetime, time_diff_in_seconds
+
+    if not frappe.db.exists("LMS Time Log", session_id):
+        return {"error": True, "restart": True, "message": "Session topilmadi"}
+
+    start_raw = frappe.db.get_value("LMS Time Log", session_id, "session_start")
+    duration  = 0
+    if start_raw:
+        duration = max(0, int(time_diff_in_seconds(now_datetime(), get_datetime(start_raw))))
+
+    update = {
+        "session_end":  now(),
+        "duration_sec": duration,
+    }
+    if activity_type:
+        update["activity_type"] = activity_type
+
+    frappe.db.set_value("LMS Time Log", session_id, update)
+    frappe.db.commit()
+
+    return {"error": False, "duration_sec": duration}
+
+
+@frappe.whitelist()
+def end_session(session_id, reason="normal"):
+    """
+    Sessiyani rasman yakunlaydi.
+    sendBeacon (page unload) hamda oddiy frappe.call orqali chaqirilishi mumkin.
+
+    MUHIM: sendBeacon FormData'da X-Frappe-CSRF-Token yuboradi —
+    Frappe v15 uni form_dict dan qabul qiladi, shuning uchun ishlaydi.
+
+    Returns:
+        {"duration_sec": 185}
+    """
+    from frappe.utils import now_datetime, get_datetime, time_diff_in_seconds
+
+    if not frappe.db.exists("LMS Time Log", session_id):
+        return {"error": True}
+
+    start_raw = frappe.db.get_value("LMS Time Log", session_id, "session_start")
+    duration  = 0
+    if start_raw:
+        duration = max(0, int(time_diff_in_seconds(now_datetime(), get_datetime(start_raw))))
+
+    frappe.db.set_value("LMS Time Log", session_id, {
+        "session_end":          now(),
+        "duration_sec":         duration,
+        "end_reason":           reason,
+        "is_completed_session": 1,
+    })
+    frappe.db.commit()
+
+    return {"error": False, "duration_sec": duration}
+
+
+@frappe.whitelist()
+def get_time_stats(employee=None, course=None, period="today"):
+    """
+    LMS Time Log dan sof vaqt statistikasini qaytaradi.
+
+    Kirishlar:
+        employee  — Employee name (admin uchun ixtiyoriy, boshqalar uchun e'tiborga olinmaydi)
+        course    — LMS Course name (ixtiyoriy filter)
+        period    — "today" | "week" | "month" | "year" | "all"
+
+    Qaytaradi:
+        {
+            total_sec, total_formatted,
+            session_count,
+            by_course:    {course_id: sec, ...},
+            by_activity:  {"Video": sec, "Quiz": sec, ...},
+            by_day:       {"2026-03-11": sec, ...},
+            breakdown:    [{lesson, activity_type, duration_sec, session_start}]
+        }
+    """
+    from frappe.utils import today, add_days, get_first_day
+    from datetime import date as _date
+
+    user       = frappe.session.user
+    emp        = _get_employee(user)
+    user_roles = set(frappe.get_roles(user))
+    is_admin   = bool({"System Manager", "LMS Admin", "HR Manager"} & user_roles)
+
+    # Ruxsat: admin istalgan hodimni ko'ra oladi; employee faqat o'zini
+    if not is_admin:
+        if not emp:
+            return {"error": True, "message": "Employee topilmadi"}
+        employee = emp["name"]
+
+    filters = {"is_completed_session": 1}
+    if employee:
+        filters["employee"] = employee
+    if course:
+        filters["course"] = course
+
+    # Davr filtri
+    period_map = {
+        "today": today(),
+        "week":  add_days(today(), -7),
+        "month": str(get_first_day(today())),
+        "year":  f"{_date.today().year}-01-01",
+    }
+    if period in period_map:
+        filters["session_start"] = [">=", period_map[period]]
+
+    logs = frappe.get_all(
+        "LMS Time Log",
+        filters=filters,
+        fields=[
+            "employee", "course", "lesson",
+            "activity_type", "duration_sec",
+            "session_start", "end_reason",
+        ],
+        ignore_permissions=is_admin,
+        order_by="session_start desc",
+        limit=10000,
+    )
+
+    total_sec   = sum(cint(l["duration_sec"]) for l in logs)
+    by_course   = {}
+    by_activity = {}
+    by_day      = {}
+
+    for l in logs:
+        c = l.get("course") or "Unknown"
+        by_course[c] = by_course.get(c, 0) + cint(l["duration_sec"])
+
+        at = l.get("activity_type") or "Video"
+        by_activity[at] = by_activity.get(at, 0) + cint(l["duration_sec"])
+
+        day = str(l["session_start"].date()) if l.get("session_start") else "Unknown"
+        by_day[day] = by_day.get(day, 0) + cint(l["duration_sec"])
+
+    return {
+        "error":           False,
+        "total_sec":       total_sec,
+        "total_formatted": _fmt_duration(total_sec),
+        "session_count":   len(logs),
+        "by_course":       by_course,
+        "by_activity":     by_activity,
+        "by_day":          dict(sorted(by_day.items())),
+        "period":          period,
+        "employee":        employee,
+        "breakdown":       logs[:200],   # UI uchun oxirgi 200 ta yozuv
+    }
+
+
+def _fmt_duration(sec):
+    """
+    Sekundni o'zbek tilidagi o'qilishi qulay formatga o'tkazadi.
+    Masalan: 3723 → "1 soat 2 daqiqa 3 soniya"
+    """
+    sec = int(sec or 0)
+    h   = sec // 3600
+    m   = (sec % 3600) // 60
+    s   = sec % 60
+    parts = []
+    if h:
+        parts.append(f"{h} soat")
+    if m:
+        parts.append(f"{m} daqiqa")
+    parts.append(f"{s} soniya")
+    return " ".join(parts)
+# ═══════════════════════════════════════════════════════════════════════════
+#  OCHIQ SAVOLLAR (Open Questions) API
+# ═══════════════════════════════════════════════════════════════════════════
+
+@frappe.whitelist()
+def get_open_questions(lesson_name):
+    """
+    Darsga biriktirilgan ochiq savollarni qaytaradi.
+    Employee avval javob bergan bo'lsa, ularni ham qaytaradi.
+    correct_answer faqat auto-graded va topshirilgan bo'lsa ko'rinadi.
+    """
+    user = frappe.session.user
+    emp  = _get_employee(user)
+    if not emp:
+        return {"error": True, "message": "Employee topilmadi"}
+    emp_id = emp["name"]
+
+    lesson = frappe.db.get_value(
+        "LMS Lesson", lesson_name,
+        ["has_open_questions", "open_question_set"],
+        as_dict=True
+    )
+    if not lesson or not cint(lesson.get("has_open_questions")):
+        return {"error": True, "message": "Bu darsda ochiq savol yo'q"}
+
+    oq_name = lesson.get("open_question_set")
+    if not oq_name:
+        return {"error": True, "message": "Savol to'plami biriktirilmagan"}
+
+    oq = frappe.db.get_value(
+        "LMS Open Question", oq_name,
+        ["name", "title", "passing_score"],
+        as_dict=True
+    )
+    if not oq:
+        return {"error": True, "message": "Savol to'plami topilmadi"}
+
+    items = frappe.get_all(
+        "LMS Open Question Item",
+        filters={"parent": oq_name, "parenttype": "LMS Open Question"},
+        fields=["name", "question_text", "question_type", "marks",
+                "order_index", "correct_answer"],
+        order_by="order_index asc",
+        ignore_permissions=True
+    )
+    if not items:
+        return {"error": True, "message": "Savollar topilmadi"}
+
+    item_names = [i["name"] for i in items]
+
+    existing_answers = frappe.get_all(
+        "LMS Open Answer",
+        filters={
+            "employee":      emp_id,
+            "lesson":        lesson_name,
+            "question_item": ["in", item_names]
+        },
+        fields=["question_item", "answer_text", "score", "status",
+                "is_auto_graded", "admin_feedback"],
+        ignore_permissions=True
+    )
+    ans_map = {a["question_item"]: a for a in existing_answers}
+
+    questions = []
+    for item in items:
+        ans = ans_map.get(item["name"])
+        is_graded_auto = (
+            ans and
+            item["question_type"] == "Auto" and
+            ans["status"] == "Graded"
+        )
+        questions.append({
+            "name":           item["name"],
+            "question_text":  item["question_text"],
+            "question_type":  item["question_type"],   # "Auto" | "Manual"
+            "marks":          flt(item["marks"]),
+            "order_index":    item["order_index"],
+            "answer_text":    ans["answer_text"]    if ans else "",
+            "score":          flt(ans["score"])     if ans else None,
+            "status":         ans["status"]         if ans else None,
+            "is_auto_graded": cint(ans["is_auto_graded"]) if ans else 0,
+            "admin_feedback": ans["admin_feedback"] if ans else "",
+            # To'g'ri javob: faqat auto-graded bo'lsa ko'rsatiladi
+            "correct_answer": item["correct_answer"] if is_graded_auto else None,
+        })
+
+    total_marks    = sum(flt(q["marks"])  for q in questions)
+    earned_marks   = sum(flt(q["score"])  for q in questions if q["score"] is not None)
+    answered_count = sum(1                for q in questions if q["answer_text"])
+    graded_count   = sum(1                for q in questions if q["status"] == "Graded")
+
+    return {
+        "error":          False,
+        "set_name":       oq_name,
+        "title":          oq["title"],
+        "passing_score":  flt(oq["passing_score"]),
+        "questions":      questions,
+        "total_marks":    total_marks,
+        "earned_marks":   earned_marks,
+        "answered_count": answered_count,
+        "graded_count":   graded_count,
+        "total_count":    len(questions),
+        "is_submitted":   answered_count == len(questions),
+        "all_graded":     graded_count == len(questions) and len(questions) > 0,
+    }
+
+
+@frappe.whitelist()
+def submit_open_answers(lesson_name, answers):
+    """
+    Employee javoblarini qabul qiladi va saqlaydi.
+    Auto-grade: correct_answer bor → darhol ball beradi (case-insensitive)
+    Manual-grade: correct_answer yo'q → admin keyinchalik tekshiradi
+
+    answers: JSON string [{question_item, answer_text}]
+    """
+    import json as _json
+
+    user = frappe.session.user
+    emp  = _get_employee(user)
+    if not emp:
+        return {"error": True, "message": "Employee topilmadi"}
+    emp_id = emp["name"]
+
+    try:
+        answers_list = _json.loads(answers) if isinstance(answers, str) else answers
+    except Exception:
+        return {"error": True, "message": "Javoblar formati noto'g'ri"}
+
+    if not answers_list:
+        return {"error": True, "message": "Javoblar bo'sh"}
+
+    results        = []
+    auto_score     = 0.0
+    manual_pending = 0
+
+    for ans in answers_list:
+        q_item_name = ans.get("question_item")
+        answer_text = (ans.get("answer_text") or "").strip()
+
+        if not q_item_name or not answer_text:
+            continue
+
+        q_item = frappe.db.get_value(
+            "LMS Open Question Item", q_item_name,
+            ["question_text", "question_type", "correct_answer", "marks"],
+            as_dict=True
+        )
+        if not q_item:
+            continue
+
+        marks       = flt(q_item["marks"])
+        q_type      = q_item.get("question_type", "Manual")
+        correct_ans = (q_item.get("correct_answer") or "").strip()
+
+        is_auto    = (q_type == "Auto" and bool(correct_ans))
+        score      = 0.0
+        status     = "Pending"
+        is_correct = False
+
+        if is_auto:
+            if answer_text.lower() == correct_ans.lower():
+                score      = marks
+                is_correct = True
+            status      = "Graded"
+            auto_score += score
+        else:
+            manual_pending += 1
+
+        existing = frappe.get_all(
+            "LMS Open Answer",
+            filters={
+                "employee":      emp_id,
+                "lesson":        lesson_name,
+                "question_item": q_item_name
+            },
+            fields=["name", "status"],
+            limit=1,
+            ignore_permissions=True
+        )
+
+        if existing:
+            if existing[0]["status"] == "Graded" and not is_auto:
+                results.append({
+                    "question_item": q_item_name,
+                    "status":        "already_graded",
+                    "score":         None,
+                })
+                continue
+
+            frappe.db.set_value("LMS Open Answer", existing[0]["name"], {
+                "answer_text":    answer_text,
+                "score":          score if is_auto else 0,
+                "status":         status,
+                "is_auto_graded": 1 if is_auto else 0,
+                "submitted_on":   now(),
+            })
+            doc_name = existing[0]["name"]
+        else:
+            doc = frappe.get_doc({
+                "doctype":        "LMS Open Answer",
+                "employee":       emp_id,
+                "lesson":         lesson_name,
+                "question_item":  q_item_name,
+                "answer_text":    answer_text,
+                "score":          score if is_auto else 0,
+                "status":         status,
+                "is_auto_graded": 1 if is_auto else 0,
+                "submitted_on":   now(),
+            })
+            doc.flags.ignore_permissions = True
+            doc.insert(ignore_permissions=True)
+            doc_name = doc.name
+
+        results.append({
+            "question_item":  q_item_name,
+            "doc_name":       doc_name,
+            "status":         status,
+            "score":          score       if is_auto else None,
+            "is_correct":     is_correct  if is_auto else None,
+            "correct_answer": correct_ans if is_auto else None,
+        })
+
+    frappe.db.commit()
+
+    return {
+        "error":          False,
+        "results":        results,
+        "auto_score":     auto_score,
+        "manual_pending": manual_pending,
+        "message": (
+            f"✅ {len(results)} ta javob saqlandi."
+            + (f" {manual_pending} ta savol admin tomonidan tekshiriladi."
+               if manual_pending else "")
+        )
+    }
+
+
+@frappe.whitelist()
+def grade_open_answer(answer_name, score, feedback=""):
+    """
+    Admin tomonidan manual javobni baholash.
+    Faqat System Manager / LMS Admin / HR Manager roli kerak.
+    """
+    allowed_roles = {"System Manager", "LMS Admin", "HR Manager"}
+    user_roles    = set(frappe.get_roles(frappe.session.user))
+    if not (allowed_roles & user_roles):
+        frappe.throw("Ruxsat yo'q. LMS Admin roli kerak.", frappe.PermissionError)
+
+    score = flt(score)
+    ans   = frappe.db.get_value(
+        "LMS Open Answer", answer_name,
+        ["question_item", "employee"],
+        as_dict=True
+    )
+    if not ans:
+        frappe.throw("Javob topilmadi")
+
+    max_marks = flt(frappe.db.get_value(
+        "LMS Open Question Item", ans["question_item"], "marks"
+    ) or 0)
+    if score > max_marks:
+        frappe.throw(f"Ball {max_marks} dan oshmasligi kerak")
+
+    frappe.db.set_value("LMS Open Answer", answer_name, {
+        "score":          score,
+        "status":         "Graded",
+        "admin_feedback": feedback,
+        "graded_by":      frappe.session.user,
+        "graded_on":      now(),
+    })
+    frappe.db.commit()
+    return {"error": False, "message": "Baholandi"}

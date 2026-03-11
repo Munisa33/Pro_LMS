@@ -15,8 +15,10 @@
   "has_assignment",
   "assignment_type",
   "assignment_instruction",
+  "has_open_questions",
   "order_index",
-  "is_free_preview"
+  "is_free_preview",
+  "open_question_set"
  ],
  "fields": [
   {
@@ -88,12 +90,24 @@
    "fieldtype": "Link",
    "label": "Section",
    "options": "LMS Section"
+  },
+  {
+   "default": "0",
+   "fieldname": "has_open_questions",
+   "fieldtype": "Check",
+   "label": "Has Open Questions"
+  },
+  {
+   "fieldname": "open_question_set",
+   "fieldtype": "Link",
+   "label": "Open Question Set",
+   "options": "LMS Open Question"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-04 14:55:07.117550",
+ "modified": "2026-03-11 07:46:16.746931",
  "modified_by": "Administrator",
  "module": "LMS for DBR",
  "name": "LMS Lesson",

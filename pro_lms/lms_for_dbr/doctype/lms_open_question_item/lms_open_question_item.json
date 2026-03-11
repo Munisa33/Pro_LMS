@@ -1,0 +1,57 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-03-11 07:24:11.059004",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "question_text",
+  "question_type",
+  "correct_answer",
+  "marks",
+  "order_index"
+ ],
+ "fields": [
+  {
+   "fieldname": "question_text",
+   "fieldtype": "Text",
+   "label": "Question Text"
+  },
+  {
+   "fieldname": "question_type",
+   "fieldtype": "Select",
+   "label": "Question Type",
+   "options": "Auto\nManual"
+  },
+  {
+   "fieldname": "correct_answer",
+   "fieldtype": "Text",
+   "label": "Correct Answer"
+  },
+  {
+   "fieldname": "marks",
+   "fieldtype": "Float",
+   "label": "Marks"
+  },
+  {
+   "fieldname": "order_index",
+   "fieldtype": "Int",
+   "label": "Order Index"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-03-11 07:33:29.824543",
+ "modified_by": "Administrator",
+ "module": "LMS for DBR",
+ "name": "LMS Open Question Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
