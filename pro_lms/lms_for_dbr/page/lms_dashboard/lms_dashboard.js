@@ -3,6 +3,198 @@
 //  Version : 4.0.0  (Full detail panels: Quiz / Assignment / Open Answer)
 // ═══════════════════════════════════════════════════════════════════════════
 
+/* ══════════════════════════════════════════════════════════════════════
+   LMSDashInactivityEngine  v2  (Page Visibility API + Focus Tracking)
+   - Faqat page VISIBLE va FOCUSED bo'lganda idle timer ishlaydi
+   - Boshqa tab/oynada ishlayotganda timer MUZLATILADI
+   - 3 daqiqa idle → 30 soniya countdown → logout
+══════════════════════════════════════════════════════════════════════ */
+class LMSDashInactivityEngine {
+	static INACTIVE_MS   = 3 * 60 * 1000;  // 3 daqiqa
+	static COUNTDOWN_SEC = 30;              // 30 soniya
+
+	constructor({ onWarn, onCountdown, onStay, onLogout }) {
+		this.onWarn      = onWarn;
+		this.onCountdown = onCountdown;
+		this.onStay      = onStay;
+		this.onLogout    = onLogout;
+
+		this._lastUserAct    = Date.now();
+		this._segmentStart   = null;
+		this._warnActive     = false;
+		this._remaining      = 0;
+		this._checkTimer     = null;
+		this._countdownTimer = null;
+
+		this._EVENTS = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll', 'wheel'];
+		this._actHandler        = this._onUserActivity.bind(this);
+		this._visibilityHandler = this._onVisibilityChange.bind(this);
+		this._focusHandler      = this._onFocus.bind(this);
+		this._blurHandler       = this._onBlur.bind(this);
+	}
+
+	start() {
+		this._lastUserAct = Date.now();
+		this._warnActive  = false;
+		this._EVENTS.forEach(e => document.addEventListener(e, this._actHandler, { passive: true }));
+		document.addEventListener('visibilitychange', this._visibilityHandler);
+		window.addEventListener('focus', this._focusHandler);
+		window.addEventListener('blur',  this._blurHandler);
+		if (this._isPageActive()) this._startSegment();
+		this._checkTimer = setInterval(() => this._check(), 5_000);
+	}
+
+	stop() {
+		this._stopSegment();
+		this._EVENTS.forEach(e => document.removeEventListener(e, this._actHandler));
+		document.removeEventListener('visibilitychange', this._visibilityHandler);
+		window.removeEventListener('focus', this._focusHandler);
+		window.removeEventListener('blur',  this._blurHandler);
+		clearInterval(this._checkTimer);
+		clearInterval(this._countdownTimer);
+		this._checkTimer = this._countdownTimer = null;
+	}
+
+	stayActive() {
+		this._lastUserAct = Date.now();
+		this._warnActive  = false;
+		clearInterval(this._countdownTimer);
+		this._countdownTimer = null;
+		if (this._isPageActive()) this._startSegment();
+		if (this.onStay) this.onStay();
+	}
+
+	_isPageActive() {
+		return document.visibilityState === 'visible' && document.hasFocus();
+	}
+
+	_startSegment() {
+		if (this._segmentStart === null) this._segmentStart = Date.now();
+	}
+
+	_stopSegment() {
+		this._segmentStart = null;
+	}
+
+	_onUserActivity() {
+		if (this._warnActive) { this.stayActive(); return; }
+		this._lastUserAct = Date.now();
+		if (this._isPageActive()) this._startSegment();
+	}
+
+	_onVisibilityChange() {
+		if (document.visibilityState === 'hidden') {
+			this._stopSegment();
+			if (this._warnActive) {
+				this._warnActive = false;
+				clearInterval(this._countdownTimer);
+				this._countdownTimer = null;
+				if (this.onStay) this.onStay();
+			}
+		} else {
+			if (document.hasFocus()) this._startSegment();
+		}
+	}
+
+	_onFocus() {
+		if (document.visibilityState === 'visible') this._startSegment();
+	}
+
+	_onBlur() {
+		this._stopSegment();
+	}
+
+	_check() {
+		if (this._warnActive) return;
+		if (!this._isPageActive()) return;
+		const idleMs = Date.now() - this._lastUserAct;
+		if (idleMs >= LMSDashInactivityEngine.INACTIVE_MS) {
+			this._stopSegment();
+			this._triggerWarn();
+		}
+	}
+
+	_triggerWarn() {
+		this._warnActive = true;
+		this._remaining  = LMSDashInactivityEngine.COUNTDOWN_SEC;
+		if (this.onWarn)      this.onWarn();
+		if (this.onCountdown) this.onCountdown(this._remaining);
+		this._countdownTimer = setInterval(() => {
+			this._remaining--;
+			if (this._remaining <= 0) {
+				clearInterval(this._countdownTimer);
+				this._countdownTimer = null;
+				this._warnActive = false;
+				if (this.onLogout) this.onLogout();
+			} else {
+				if (this.onCountdown) this.onCountdown(this._remaining);
+			}
+		}, 1000);
+	}
+}
+
+/* ── Inactivity modal CSS + DOM (idempotent) ── */
+function _lmsDashInjectInactivityAssets() {
+	if (!document.getElementById('lms-dash-inact-style')) {
+		const s = document.createElement('style');
+		s.id = 'lms-dash-inact-style';
+		s.textContent = `
+#lms-dash-inact-modal {
+	display: none; position: fixed; inset: 0; z-index: 99999;
+	background: rgba(0,0,0,0.68); backdrop-filter: blur(5px);
+	align-items: center; justify-content: center;
+}
+#lms-dash-inact-modal.lms-inact-show { display: flex; }
+.lms-dash-inact-box {
+	background: #fff; border-radius: 18px; padding: 36px 32px 28px;
+	max-width: 400px; width: 90%; text-align: center;
+	box-shadow: 0 28px 72px rgba(0,0,0,0.30);
+	animation: lms-inact-pop 0.22s cubic-bezier(.34,1.56,.64,1) both;
+}
+@keyframes lms-inact-pop {
+	from { transform: scale(0.88); opacity: 0; }
+	to   { transform: scale(1);    opacity: 1; }
+}
+.lms-dash-inact-icon  { font-size: 52px; margin-bottom: 12px; }
+.lms-dash-inact-title { margin: 0 0 8px; font-size: 20px; font-weight: 700; color: #1f2937; }
+.lms-dash-inact-sub   { font-size: 14px; color: #6b7280; margin-bottom: 4px; line-height: 1.6; }
+.lms-dash-inact-count {
+	font-size: 52px; font-weight: 800; color: #ef4444;
+	display: block; margin: 6px 0 18px; line-height: 1;
+	font-variant-numeric: tabular-nums;
+}
+.lms-dash-inact-btn {
+	background: linear-gradient(135deg, #6366f1, #8b5cf6);
+	color: #fff; border: none; border-radius: 10px;
+	padding: 12px 32px; font-size: 15px; font-weight: 600;
+	cursor: pointer; width: 100%;
+	transition: transform 0.15s, box-shadow 0.15s;
+}
+.lms-dash-inact-btn:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 8px 24px rgba(99,102,241,0.38);
+}`;
+		document.head.appendChild(s);
+	}
+
+	if (!document.getElementById('lms-dash-inact-modal')) {
+		const el = document.createElement('div');
+		el.id = 'lms-dash-inact-modal';
+		el.setAttribute('role', 'alertdialog');
+		el.setAttribute('aria-modal', 'true');
+		el.innerHTML = `
+			<div class="lms-dash-inact-box">
+				<div class="lms-dash-inact-icon">⏰</div>
+				<h3 class="lms-dash-inact-title">Faolsizlik aniqlandi</h3>
+				<p class="lms-dash-inact-sub">Siz <strong>3 daqiqa</strong> faol bo'lmadingiz.</p>
+				<span class="lms-dash-inact-count" id="lms-dash-inact-counter">30</span>
+				<p class="lms-dash-inact-sub" style="margin-bottom:20px">soniyadan so'ng tizimdan chiqasiz.</p>
+				<button class="lms-dash-inact-btn" id="lms-dash-inact-stay">✓ Davom etish</button>
+			</div>`;
+		document.body.appendChild(el);
+	}
+}
+
 frappe.pages['lms_dashboard'].on_page_load = function (wrapper) {
 	frappe.ui.make_app_page({
 		parent: wrapper,
@@ -17,6 +209,8 @@ frappe.pages['lms_dashboard'].on_page_load = function (wrapper) {
 		document.head.appendChild(style);
 	}
 
+	_lmsDashInjectInactivityAssets();
+
 	frappe.after_ajax(() => {
 		window.lms_dash = new LMSDashboard(wrapper);
 	});
@@ -30,10 +224,12 @@ class LMSDashboard {
 		this.data       = null;
 		this._cache_key = 'lms_dash_cache_v4';
 		this._cache_ttl = 5 * 60 * 1000;
+		this._inactivityEngine = null;
 
 		this._injectLayoutFix();
 		this._showSkeleton();
 		this._load();
+		this._startInactivityWatch();
 	}
 
 	// ── Layout fix ────────────────────────────────────────────────────────
@@ -123,6 +319,62 @@ class LMSDashboard {
 				if (!cached) this._showError("Xatolik: " + (err.message || "Noma'lum xato"));
 			}
 		});
+	}
+
+	// ── Inactivity watch ──────────────────────────────────────────────────
+	_startInactivityWatch() {
+		if (this._inactivityEngine) return;  // qayta boshlashni oldini olish
+
+		this._inactivityEngine = new LMSDashInactivityEngine({
+			onWarn: () => {
+				const m = document.getElementById('lms-dash-inact-modal');
+				if (m) m.classList.add('lms-inact-show');
+			},
+			onCountdown: (sec) => {
+				const el = document.getElementById('lms-dash-inact-counter');
+				if (el) el.textContent = sec;
+			},
+			onStay: () => {
+				const m = document.getElementById('lms-dash-inact-modal');
+				if (m) m.classList.remove('lms-inact-show');
+			},
+			onLogout: () => this._doInactivityLogout(),
+		});
+		this._inactivityEngine.start();
+
+		const stayBtn = document.getElementById('lms-dash-inact-stay');
+		if (stayBtn) {
+			stayBtn.addEventListener('click', () => {
+				this._inactivityEngine && this._inactivityEngine.stayActive();
+			});
+		}
+	}
+
+	_stopInactivityWatch() {
+		if (this._inactivityEngine) {
+			this._inactivityEngine.stop();
+			this._inactivityEngine = null;
+		}
+	}
+
+	_doInactivityLogout() {
+		const m = document.getElementById('lms-dash-inact-modal');
+		if (m) m.classList.remove('lms-inact-show');
+		this._stopInactivityWatch();
+
+		const _redirect = () => { window.location.href = '/login?reason=inactivity'; };
+		try {
+			if (frappe.app && typeof frappe.app.logout === 'function') {
+				frappe.app.logout();
+				setTimeout(_redirect, 800);
+			} else {
+				frappe.call({
+					method: 'frappe.client.logout',
+					callback: _redirect,
+					error:    _redirect,
+				});
+			}
+		} catch (e) { _redirect(); }
 	}
 
 	_getCache() {

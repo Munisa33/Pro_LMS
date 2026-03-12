@@ -323,8 +323,8 @@ function _injectInactivityModalDOM() {
 		<div class="lp-inact-box">
 			<div class="lp-inact-icon">⏰</div>
 			<h3 class="lp-inact-title">Faolsizlik aniqlandi</h3>
-			<p class="lp-inact-sub">Siz <strong>5 daqiqa</strong> faol bo'lmadingiz.</p>
-			<span class="lp-inact-counter" id="lp-inact-counter">60</span>
+			<p class="lp-inact-sub">Siz <strong>3 daqiqa</strong> faol bo'lmadingiz.</p>
+			<span class="lp-inact-counter" id="lp-inact-counter">30</span>
 			<p class="lp-inact-sub" style="margin-bottom:20px">soniyadan so'ng tizimdan chiqasiz.</p>
 			<button class="lp-inact-stay" id="lp-inact-stay">✓ Davom etish</button>
 		</div>
@@ -412,103 +412,182 @@ function _extractYouTubeId(url) {
 
 
 /* ══════════════════════════════════════════════════════════════════════
-   InactivityEngine
+/* ══════════════════════════════════════════════════════════════════════
+   InactivityEngine  v2  (Page Visibility API + Focus Tracking)
    ──────────────────────────────────────────────────────────────────────
-   Dunyo standarti (Coursera / LinkedIn Learning algoritmiga mos):
-   - DOM events (mousemove, keydown, click, touchstart, scroll, wheel)
-	 orqali foydalanuvchi faolligini kuzatadi.
-   - Har 10 soniyada idle vaqtni tekshiradi.
-   - INACTIVE_THRESHOLD_MS (5 daqiqa) dan oshsa: onWarn callback chaqiriladi.
-   - WARN_COUNTDOWN_SEC (60 soniya) ichida javob bo'lmasa: onLogout chaqiriladi.
-   - Video/audio ijro paytida pulse() ni chaqirish bilan timer yangilanadi.
+   Dunyo standarti (Coursera / Udemy / LinkedIn Learning):
+   - Faqat page VISIBLE va FOCUSED bo'lgandagina idle timer ishlaydi.
+   - Boshqa tab/oynada ishlayotgan bo'lsa — timer MUZLATILADI.
+   - Page visibility: document.visibilitychange API
+   - Focus:          window focus/blur events
+   - 3 daqiqa faolsizlik → 30 soniya ogohlantirish → logout
 ══════════════════════════════════════════════════════════════════════ */
 class InactivityEngine {
-	static INACTIVE_THRESHOLD_MS = 5 * 60 * 1000;  // 5 daqiqa
-	static WARN_COUNTDOWN_SEC = 60;              // 1 daqiqa ogohlantirish
+	static INACTIVE_MS   = 3 * 60 * 1000;  // 3 daqiqa (sof faol vaqt)
+	static COUNTDOWN_SEC = 30;              // 30 soniya ogohlantirish
 
 	constructor({ onWarn, onCountdown, onStay, onLogout }) {
-		this.onWarn = onWarn;       // ()    → ogohlantirishni ko'rsat
-		this.onCountdown = onCountdown;  // (sec) → sanachini yangilash
-		this.onStay = onStay;       // ()    → foydalanuvchi davom etdi
-		this.onLogout = onLogout;     // ()    → chiqish bajar
+		this.onWarn      = onWarn;
+		this.onCountdown = onCountdown;
+		this.onStay      = onStay;
+		this.onLogout    = onLogout;
 
-		this._lastActivity = Date.now();
-		this._warnActive = false;
-		this._remaining = 0;
-		this._checkTimer = null;
+		this._activeMs       = 0;        // sof faol vaqt akkumulyatori
+		this._segmentStart   = null;     // joriy faol segment boshi
+		this._lastUserAct    = Date.now();
+		this._warnActive     = false;
+		this._remaining      = 0;
+		this._checkTimer     = null;
 		this._countdownTimer = null;
 
-		this._EVENTS = ['mousemove', 'keydown', 'click', 'touchstart', 'scroll', 'wheel'];
-		this._handler = this._onActivity.bind(this);
+		// Faqat bu page ichidagi harakatlar kuzatiladi
+		this._EVENTS = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll', 'wheel'];
+		this._actHandler        = this._onUserActivity.bind(this);
+		this._visibilityHandler = this._onVisibilityChange.bind(this);
+		this._focusHandler      = this._onFocus.bind(this);
+		this._blurHandler       = this._onBlur.bind(this);
 	}
 
 	/** Kuzatishni boshlaydi */
 	start() {
-		this._lastActivity = Date.now();
+		this._activeMs     = 0;
+		this._lastUserAct  = Date.now();
+		this._warnActive   = false;
+
+		// Foydalanuvchi harakatlari
 		this._EVENTS.forEach(e =>
-			document.addEventListener(e, this._handler, { passive: true })
+			document.addEventListener(e, this._actHandler, { passive: true })
 		);
-		this._checkTimer = setInterval(() => this._check(), 10_000);
+		// Page visibility (boshqa tabga o'tdi/qaytdi)
+		document.addEventListener('visibilitychange', this._visibilityHandler);
+		// Window focus/blur (boshqa oynaga o'tdi)
+		window.addEventListener('focus', this._focusHandler);
+		window.addEventListener('blur',  this._blurHandler);
+
+		// Page visible va focused bo'lsa segmentni boshlaydi
+		if (this._isPageActive()) this._startSegment();
+
+		// Har 5 soniyada idle tekshiruvi
+		this._checkTimer = setInterval(() => this._check(), 5_000);
 	}
 
-	/** Kuzatishni to'xtatadi (page unload / logout oldidan chaqiring) */
+	/** To'xtatish */
 	stop() {
-		this._EVENTS.forEach(e => document.removeEventListener(e, this._handler));
+		this._stopSegment();
+		this._EVENTS.forEach(e => document.removeEventListener(e, this._actHandler));
+		document.removeEventListener('visibilitychange', this._visibilityHandler);
+		window.removeEventListener('focus', this._focusHandler);
+		window.removeEventListener('blur',  this._blurHandler);
 		clearInterval(this._checkTimer);
-		this._clearCountdown();
+		clearInterval(this._countdownTimer);
+		this._checkTimer = this._countdownTimer = null;
 	}
 
-	/**
-	 * Video/quiz aktiv bo'lganda tashqaridan chaqiriladi.
-	 * Bu media ijrosi = foydalanuvchi faol degan ma'noni anglatadi.
-	 */
+	/** Video ijrosi paytida tashqaridan chaqiriladi — faollik belgisi */
 	pulse() {
-		if (!this._warnActive) {
-			this._lastActivity = Date.now();
-		}
+		if (!this._warnActive) this._onUserActivity();
 	}
 
-	/** Foydalanuvchi "Davom etish" tugmasini bosdi */
+	/** "Davom etish" tugmasi */
 	stayActive() {
-		this._lastActivity = Date.now();
-		this._warnActive = false;
-		this._clearCountdown();
+		this._activeMs    = 0;
+		this._lastUserAct = Date.now();
+		this._warnActive  = false;
+		clearInterval(this._countdownTimer);
+		this._countdownTimer = null;
+		if (this._isPageActive()) this._startSegment();
 		if (this.onStay) this.onStay();
 	}
 
-	_onActivity() {
-		this._lastActivity = Date.now();
-		if (this._warnActive) this.stayActive();
+	// ── Private ───────────────────────────────────────────────────────────
+
+	/** Page visible AND window focused — sof faol holat */
+	_isPageActive() {
+		return document.visibilityState === 'visible' && document.hasFocus();
+	}
+
+	/** Faol segment boshlanishi */
+	_startSegment() {
+		if (this._segmentStart === null) {
+			this._segmentStart = Date.now();
+		}
+	}
+
+	/** Faol segment tugashi — o'tgan vaqtni akkumulyatorga qo'shadi */
+	_stopSegment() {
+		if (this._segmentStart !== null) {
+			this._activeMs    += Date.now() - this._segmentStart;
+			this._segmentStart = null;
+		}
+	}
+
+	_onUserActivity() {
+		if (this._warnActive) { this.stayActive(); return; }
+		this._lastUserAct = Date.now();
+		// Foydalanuvchi harakat qildi → idle akkumulyatorni reset
+		this._activeMs = 0;
+		if (this._isPageActive()) this._startSegment();
+	}
+
+	_onVisibilityChange() {
+		if (document.visibilityState === 'hidden') {
+			// Tab background ga o'tdi — timer muzlatiladi
+			this._stopSegment();
+			// Ogohlantirish chiqib turgan bo'lsa — yashiriladi (boshqa tabda ko'rinmasin)
+			if (this._warnActive) {
+				this._warnActive = false;
+				clearInterval(this._countdownTimer);
+				this._countdownTimer = null;
+				if (this.onStay) this.onStay();
+			}
+		} else {
+			// Tab qaytdi — foydalanuvchi faol bo'lsa timer davom etadi
+			if (document.hasFocus()) this._startSegment();
+		}
+	}
+
+	_onFocus() {
+		// Oyna focus oldi — segment boshlaydi
+		if (document.visibilityState === 'visible') this._startSegment();
+	}
+
+	_onBlur() {
+		// Oyna focus yo'qotdi — segment to'xtatiladi
+		this._stopSegment();
 	}
 
 	_check() {
 		if (this._warnActive) return;
-		if (Date.now() - this._lastActivity >= InactivityEngine.INACTIVE_THRESHOLD_MS) {
+		if (!this._isPageActive()) return;  // background — tekshirma
+
+		// Segment ichida foydalanuvchi harakatsiz qoldi → idle vaqtni hisoblash
+		const idleMs = this._segmentStart !== null
+			? (Date.now() - this._lastUserAct)
+			: 0;
+
+		if (idleMs >= InactivityEngine.INACTIVE_MS) {
+			this._stopSegment();
 			this._triggerWarn();
 		}
 	}
 
 	_triggerWarn() {
 		this._warnActive = true;
-		this._remaining = InactivityEngine.WARN_COUNTDOWN_SEC;
-		if (this.onWarn) this.onWarn();
+		this._remaining  = InactivityEngine.COUNTDOWN_SEC;
+		if (this.onWarn)      this.onWarn();
 		if (this.onCountdown) this.onCountdown(this._remaining);
 
 		this._countdownTimer = setInterval(() => {
 			this._remaining--;
 			if (this._remaining <= 0) {
-				this._clearCountdown();
+				clearInterval(this._countdownTimer);
+				this._countdownTimer = null;
 				this._warnActive = false;
 				if (this.onLogout) this.onLogout();
 			} else {
 				if (this.onCountdown) this.onCountdown(this._remaining);
 			}
 		}, 1000);
-	}
-
-	_clearCountdown() {
-		clearInterval(this._countdownTimer);
-		this._countdownTimer = null;
 	}
 }
 
@@ -739,12 +818,22 @@ class LMSPlayer {
 		if (this.video_element) try { this.video_element.pause(); } catch (e) { }
 		this._stopTracking('inactivity');
 
-		// Frappe v15 logout
-		frappe.call({
-			method: 'logout',
-			callback: () => { window.location.href = '/login?timeout=1'; },
-			error: () => { window.location.href = '/login?timeout=1'; }
-		});
+		// Frappe v15 — to'g'ri logout: frappe.app.logout() server sessiyani yopadi
+		const _redirect = () => { window.location.href = '/login?reason=inactivity'; };
+		try {
+			if (frappe.app && typeof frappe.app.logout === 'function') {
+				frappe.app.logout();
+				setTimeout(_redirect, 800);
+			} else {
+				frappe.call({
+					method: 'frappe.client.logout',
+					callback: _redirect,
+					error:    _redirect,
+				});
+			}
+		} catch (e) {
+			_redirect();
+		}
 	}
 
 	_showInactivityWarning() {
