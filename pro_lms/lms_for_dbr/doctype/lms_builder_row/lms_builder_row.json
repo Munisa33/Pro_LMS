@@ -1,0 +1,134 @@
+{
+  "name": "LMS Builder Row",
+  "doctype": "DocType",
+  "module": "LMS for DBR",
+  "istable": 1,
+  "track_changes": 0,
+  "fields": [
+    {
+      "fieldname": "lesson_title",
+      "fieldtype": "Data",
+      "label": "Lesson Title",
+      "reqd": 1,
+      "in_list_view": 1,
+      "columns": 3,
+      "bold": 1
+    },
+    {
+      "fieldname": "section_title",
+      "fieldtype": "Data",
+      "label": "Section Title",
+      "in_list_view": 1,
+      "columns": 2
+    },
+    {
+      "fieldname": "video_url",
+      "fieldtype": "Data",
+      "label": "Video URL",
+      "in_list_view": 1,
+      "columns": 3
+    },
+    {
+      "fieldname": "video_duration_sec",
+      "fieldtype": "Int",
+      "label": "Duration (sec)",
+      "reqd": 1,
+      "in_list_view": 1,
+      "columns": 1
+    },
+    {
+      "fieldname": "minimum_watch_percent",
+      "fieldtype": "Float",
+      "label": "Min Watch %",
+      "default": "80",
+      "in_list_view": 1,
+      "columns": 1
+    },
+    {
+      "fieldname": "col_b1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "has_quiz",
+      "fieldtype": "Check",
+      "label": "Has Quiz",
+      "in_list_view": 1,
+      "columns": 1
+    },
+    {
+      "fieldname": "quiz_title",
+      "fieldtype": "Data",
+      "label": "Quiz Title",
+      "depends_on": "eval:doc.has_quiz==1",
+      "mandatory_depends_on": "eval:doc.has_quiz==1"
+    },
+    {
+      "fieldname": "quiz_passing_score",
+      "fieldtype": "Float",
+      "label": "Quiz Pass %",
+      "default": "60",
+      "depends_on": "eval:doc.has_quiz==1"
+    },
+    {
+      "fieldname": "max_attempts",
+      "fieldtype": "Int",
+      "label": "Max Attempts",
+      "default": "3",
+      "depends_on": "eval:doc.has_quiz==1"
+    },
+    {
+      "fieldname": "col_b2",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "has_open_questions",
+      "fieldtype": "Check",
+      "label": "Has Open Q",
+      "in_list_view": 1,
+      "columns": 1
+    },
+    {
+      "fieldname": "oq_title",
+      "fieldtype": "Data",
+      "label": "Open Q Title",
+      "depends_on": "eval:doc.has_open_questions==1",
+      "mandatory_depends_on": "eval:doc.has_open_questions==1"
+    },
+    {
+      "fieldname": "open_q_passing_score",
+      "fieldtype": "Float",
+      "label": "Open Q Pass %",
+      "default": "60",
+      "depends_on": "eval:doc.has_open_questions==1"
+    },
+    {
+      "fieldname": "col_b3",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "has_assignment",
+      "fieldtype": "Check",
+      "label": "Has Assignment"
+    },
+    {
+      "fieldname": "assignment_type",
+      "fieldtype": "Select",
+      "label": "Topshiriq Turi",
+      "options": "\nFile Upload\nGoogle Sheets Link\nExcel Upload",
+      "depends_on": "eval:doc.has_assignment==1",
+      "mandatory_depends_on": "eval:doc.has_assignment==1"
+    },
+    {
+      "fieldname": "assignment_instruction",
+      "fieldtype": "Text",
+      "label": "Topshiriq Yo'riqnomasi",
+      "depends_on": "eval:doc.has_assignment==1",
+      "mandatory_depends_on": "eval:doc.has_assignment==1"
+    },
+    {
+      "fieldname": "is_free_preview",
+      "fieldtype": "Check",
+      "label": "Free Preview"
+    }
+  ]
+}

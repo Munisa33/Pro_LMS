@@ -20,7 +20,9 @@ scheduler_events = {
     ]
 }
 # required_apps = []
-
+doctype_js = {
+    "LMS Course Builder": "public/js/lms_course_builder.js"
+}
 # Each item in the list will be shown as an app in the apps page
 # add_to_apps_screen = [
 # 	{

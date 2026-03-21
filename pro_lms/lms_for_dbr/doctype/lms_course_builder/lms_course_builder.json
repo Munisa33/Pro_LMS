@@ -1,0 +1,124 @@
+{
+  "name": "LMS Course Builder",
+  "doctype": "DocType",
+  "module": "LMS for DBR",
+  "is_submittable": 1,
+  "track_changes": 0,
+  "title_field": "course_name",
+  "fields": [
+    {
+      "fieldname": "program_name",
+      "fieldtype": "Data",
+      "label": "Program Name",
+      "reqd": 1,
+      "in_list_view": 1,
+      "bold": 1
+    },
+    {
+      "fieldname": "passing_percentage",
+      "fieldtype": "Float",
+      "label": "Program Passing %",
+      "default": "80"
+    },
+    {
+      "fieldname": "col_b1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "course_name",
+      "fieldtype": "Data",
+      "label": "Course Name",
+      "reqd": 1,
+      "in_list_view": 1,
+      "bold": 1
+    },
+    {
+      "fieldname": "passing_score",
+      "fieldtype": "Float",
+      "label": "Course Pass Score %",
+      "default": "70"
+    },
+    {
+      "fieldname": "is_sequential",
+      "fieldtype": "Check",
+      "label": "Is Sequential"
+    },
+    {
+      "fieldname": "sb_lessons",
+      "fieldtype": "Section Break",
+      "label": "📚 Darslar"
+    },
+    {
+      "fieldname": "lessons",
+      "fieldtype": "Table",
+      "label": "Lessons",
+      "options": "LMS Builder Row",
+      "reqd": 1
+    },
+    {
+      "fieldname": "sb_quiz",
+      "fieldtype": "Section Break",
+      "label": "📝 Quiz Savollari",
+      "description": "has_quiz belgilangan lessonlar uchun savollar shu yerga kiritiladi. Lesson ustuni avtomatik to'ldiriladi."
+    },
+    {
+      "fieldname": "quiz_questions",
+      "fieldtype": "Table",
+      "label": "Quiz Questions",
+      "options": "LMS Builder Quiz Row"
+    },
+    {
+      "fieldname": "sb_open_q",
+      "fieldtype": "Section Break",
+      "label": "❓ Ochiq Savollar",
+      "description": "has_open_questions belgilangan lessonlar uchun ochiq savollar shu yerga kiritiladi."
+    },
+    {
+      "fieldname": "open_questions",
+      "fieldtype": "Table",
+      "label": "Open Questions",
+      "options": "LMS Builder Open Question Row"
+    },
+    {
+      "fieldname": "sb_result",
+      "fieldtype": "Section Break",
+      "label": "Natija",
+      "collapsible": 1
+    },
+    {
+      "fieldname": "build_status",
+      "fieldtype": "Data",
+      "label": "Build Status",
+      "read_only": 1,
+      "in_list_view": 1
+    },
+    {
+    "fieldname": "amended_from",
+    "fieldtype": "Link",
+    "label": "Amended From",
+    "options": "LMS Course Builder",
+    "print_hide": 1,
+    "read_only": 1,
+    "no_copy": 1
+  },
+    {
+      "fieldname": "created_course",
+      "fieldtype": "Link",
+      "label": "Yaratilgan Kurs",
+      "options": "LMS Course",
+      "read_only": 1
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1, "write": 1, "create": 1,
+      "submit": 1, "cancel": 1, "delete": 1
+    },
+    {
+      "role": "LMS Manager",
+      "read": 1, "write": 1, "create": 1, "submit": 1
+    }
+
+  ]
+}

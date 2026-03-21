@@ -1,0 +1,74 @@
+{
+  "name": "LMS Builder Quiz Row",
+  "doctype": "DocType",
+  "module": "LMS for DBR",
+  "istable": 1,
+  "track_changes": 0,
+  "fields": [
+    {
+      "fieldname": "lesson_title",
+      "fieldtype": "Data",
+      "label": "Lesson",
+      "reqd": 1,
+      "in_list_view": 1,
+      "columns": 2,
+      "bold": 1,
+      "description": "has_quiz bosilganda avtomatik to'ldiriladi"
+    },
+    {
+      "fieldname": "question_text",
+      "fieldtype": "Small Text",
+      "label": "Savol",
+      "reqd": 1,
+      "in_list_view": 1,
+      "columns": 4
+    },
+    {
+      "fieldname": "marks",
+      "fieldtype": "Float",
+      "label": "Ball",
+      "default": "1",
+      "in_list_view": 1,
+      "columns": 1
+    },
+    {
+      "fieldname": "option_a",
+      "fieldtype": "Data",
+      "label": "Option A",
+      "reqd": 1,
+      "in_list_view": 1,
+      "columns": 1
+    },
+    {
+      "fieldname": "option_b",
+      "fieldtype": "Data",
+      "label": "Option B",
+      "reqd": 1,
+      "in_list_view": 1,
+      "columns": 1
+    },
+    {
+      "fieldname": "option_c",
+      "fieldtype": "Data",
+      "label": "Option C",
+      "in_list_view": 1,
+      "columns": 1
+    },
+    {
+      "fieldname": "option_d",
+      "fieldtype": "Data",
+      "label": "Option D",
+      "in_list_view": 1,
+      "columns": 1
+    },
+    {
+      "fieldname": "correct_option",
+      "fieldtype": "Select",
+      "label": "To'g'ri",
+      "options": "\nA\nB\nC\nD",
+      "reqd": 1,
+      "in_list_view": 1,
+      "columns": 1
+    }
+  ]
+}

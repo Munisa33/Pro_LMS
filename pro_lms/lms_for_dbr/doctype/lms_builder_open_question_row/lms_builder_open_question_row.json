@@ -1,0 +1,52 @@
+{
+  "name": "LMS Builder Open Question Row",
+  "doctype": "DocType",
+  "module": "LMS for DBR",
+  "istable": 1,
+  "track_changes": 0,
+  "fields": [
+    {
+      "fieldname": "lesson_title",
+      "fieldtype": "Data",
+      "label": "Lesson",
+      "reqd": 1,
+      "in_list_view": 1,
+      "columns": 2,
+      "bold": 1,
+      "description": "has_open_questions bosilganda avtomatik to'ldiriladi"
+    },
+    {
+      "fieldname": "question_text",
+      "fieldtype": "Text",
+      "label": "Savol",
+      "reqd": 1,
+      "in_list_view": 1,
+      "columns": 5
+    },
+    {
+      "fieldname": "question_type",
+      "fieldtype": "Select",
+      "label": "Tur",
+      "options": "Manual\nAuto",
+      "default": "Manual",
+      "in_list_view": 1,
+      "columns": 1
+    },
+    {
+      "fieldname": "correct_answer",
+      "fieldtype": "Text",
+      "label": "To'g'ri Javob",
+      "depends_on": "eval:doc.question_type=='Auto'",
+      "in_list_view": 1,
+      "columns": 2
+    },
+    {
+      "fieldname": "marks",
+      "fieldtype": "Float",
+      "label": "Ball",
+      "default": "5",
+      "in_list_view": 1,
+      "columns": 1
+    }
+  ]
+}
