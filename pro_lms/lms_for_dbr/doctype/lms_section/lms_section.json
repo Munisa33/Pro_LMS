@@ -46,7 +46,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-03 21:16:19.532931",
+ "modified": "2026-03-22 12:47:27.615311",
  "modified_by": "Administrator",
  "module": "LMS for DBR",
  "name": "LMS Section",
@@ -68,7 +68,11 @@
  ],
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
+ "search_fields": "section_title",
+ "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "title_field": "section_title",
+ "translated_doctype": 1
 }

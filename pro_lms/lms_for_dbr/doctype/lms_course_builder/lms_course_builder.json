@@ -93,32 +93,46 @@
       "in_list_view": 1
     },
     {
-    "fieldname": "amended_from",
-    "fieldtype": "Link",
-    "label": "Amended From",
-    "options": "LMS Course Builder",
-    "print_hide": 1,
-    "read_only": 1,
-    "no_copy": 1
-  },
-    {
       "fieldname": "created_course",
       "fieldtype": "Link",
       "label": "Yaratilgan Kurs",
       "options": "LMS Course",
       "read_only": 1
+    },
+    {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "label": "Amended From",
+      "options": "LMS Course Builder",
+      "print_hide": 1,
+      "read_only": 1,
+      "no_copy": 1
+    },
+    {
+      "fieldname": "created_program",
+      "fieldtype": "Link",
+      "label": "Yaratilgan Program",
+      "options": "LMS Program",
+      "read_only": 1,
+      "print_hide": 1
     }
   ],
   "permissions": [
     {
       "role": "System Manager",
-      "read": 1, "write": 1, "create": 1,
-      "submit": 1, "cancel": 1, "delete": 1
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "submit": 1,
+      "cancel": 1,
+      "delete": 1
     },
     {
       "role": "LMS Manager",
-      "read": 1, "write": 1, "create": 1, "submit": 1
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "submit": 1
     }
-
   ]
 }
