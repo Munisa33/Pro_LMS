@@ -12,7 +12,8 @@
   "thumbnail",
   "is_published",
   "passing_percentage",
-  "certificate_template"
+  "certificate_template",
+  "order_index"
  ],
  "fields": [
   {
@@ -54,12 +55,17 @@
    "fieldtype": "Table",
    "label": "Courses",
    "options": "LMS Program Course"
+  },
+  {
+   "fieldname": "order_index",
+   "fieldtype": "Int",
+   "label": "Order Index "
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-22 12:46:37.780326",
+ "modified": "2026-03-26 18:01:54.726725",
  "modified_by": "Administrator",
  "module": "LMS for DBR",
  "name": "LMS Program",

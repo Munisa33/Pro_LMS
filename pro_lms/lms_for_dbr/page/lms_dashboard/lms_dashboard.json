@@ -7,9 +7,9 @@
     "modified": "2026-03-03 21:27:48.120055",
     "modified_by": "Administrator",
     "module": "LMS for DBR",
-    "name": "lms_dashboard",
+    "name": "lms-dashboard",
     "owner": "Administrator",
-    "page_name": "lms_dashboard",
+    "page_name": "lms-dashboard",
     "roles": [
         {
             "role": "Employee"

@@ -12,7 +12,8 @@
   "allow_skip",
   "passing_score",
   "instructor",
-  "section_order"
+  "section_order",
+  "order_index"
  ],
  "fields": [
   {
@@ -56,12 +57,17 @@
    "fieldtype": "Table",
    "label": "Section Order",
    "options": "LMS Course Section"
+  },
+  {
+   "fieldname": "order_index",
+   "fieldtype": "Int",
+   "label": "Order Index"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-22 12:42:45.765227",
+ "modified": "2026-03-26 17:51:42.537147",
  "modified_by": "Administrator",
  "module": "LMS for DBR",
  "name": "LMS Course",

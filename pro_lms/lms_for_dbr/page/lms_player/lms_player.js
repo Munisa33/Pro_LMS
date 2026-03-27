@@ -1,1957 +1,2102 @@
-frappe.pages['lms-player'].on_page_load = function (wrapper) {
-	frappe.ui.make_app_page({ parent: wrapper, title: 'LMS Player', single_column: true });
-	_injectOpenQCSS();
-	_injectInactivityCSS();
-	frappe.after_ajax(() => {
-		_ensurePhotoSwipeDom();
-		_injectInactivityModalDOM();
-		_loadYouTubeAPI();
-		window.lms_player = new LMSPlayer(wrapper);
-	});
+// ═══════════════════════════════════════════════════════════════
+// SECTION 1: Page Initialization
+// ═══════════════════════════════════════════════════════════════
+
+frappe.pages["lms-player"].on_page_load = function (wrapper) {
+    frappe.ui.make_app_page({
+        parent: wrapper,
+        title: "LMS Player",
+        single_column: true,
+    });
+    localStorage.removeItem("_page:lms-player");
 };
 
-/* ══════════════════════════════════════════════════════════════════════
-   CSS INJECTORS
-══════════════════════════════════════════════════════════════════════ */
+frappe.pages["lms-player"].on_page_hide = function (wrapper) {
+    localStorage.removeItem("lms_player_active");
+    if (wrapper.lms_player_instance) {
+        wrapper.lms_player_instance.destroy();
+        wrapper.lms_player_instance = null;
+    }
+};
 
-function _injectOpenQCSS() {
-	if (document.getElementById('lms-oq-style')) return;
-	const s = document.createElement('style');
-	s.id = 'lms-oq-style';
-	s.textContent = `
-/* ── Ochiq savol action tugmasi ── */
-.lp-btn-oq {
-	background: linear-gradient(135deg, #0891b2, #06b6d4);
-	color: #fff;
-}
-.lp-btn-oq:hover {
-	transform: translateY(-1px);
-	box-shadow: 0 6px 18px rgba(6,182,212,0.4);
-}
-/* ── Modal wrapper ── */
-.lp-oq-wrap { padding: 2px 0 8px; }
-/* ── Header ── */
-.lp-oq-header {
-	margin-bottom: 20px;
-	padding-bottom: 14px;
-	border-bottom: 1px solid rgba(0,0,0,0.07);
-}
-.lp-oq-title {
-	font-size: 16px;
-	font-weight: 700;
-	color: var(--text-color, #1f2937);
-	margin-bottom: 10px;
-}
-.lp-oq-meta { display: flex; flex-wrap: wrap; gap: 8px; }
-/* ── Chips ── */
-.lp-oq-chip {
-	font-size: 12px;
-	font-weight: 600;
-	padding: 3px 10px;
-	border-radius: 20px;
-	background: rgba(99,102,241,0.09);
-	color: #6366f1;
-	border: 1px solid rgba(99,102,241,0.2);
-}
-.lp-oq-chip-green  { background: rgba(16,185,129,0.1);  color: #059669; border-color: rgba(16,185,129,0.25); }
-.lp-oq-chip-orange { background: rgba(245,158,11,0.1);  color: #d97706; border-color: rgba(245,158,11,0.25); }
-.lp-oq-chip-blue   { background: rgba(59,130,246,0.1);  color: #2563eb; border-color: rgba(59,130,246,0.25); }
-.lp-oq-chip-red    { background: rgba(239,68,68,0.1);   color: #dc2626; border-color: rgba(239,68,68,0.25); }
-/* ── Question block ── */
-.lp-oq-q {
-	margin-bottom: 18px;
-	padding: 15px;
-	border: 1.5px solid rgba(99,102,241,0.18);
-	border-radius: 12px;
-	background: rgba(99,102,241,0.025);
-	transition: border-color 0.2s;
-}
-.lp-oq-q:hover        { border-color: rgba(99,102,241,0.38); }
-.lp-oq-q-graded       { border-color: rgba(16,185,129,0.3) !important; background: rgba(16,185,129,0.025); }
-.lp-oq-q-pending      { border-color: rgba(245,158,11,0.3)  !important; background: rgba(245,158,11,0.025); }
-.lp-oq-q-head {
-	display: flex;
-	align-items: flex-start;
-	flex-wrap: wrap;
-	gap: 8px;
-	margin-bottom: 11px;
-}
-.lp-oq-q-num {
-	width: 24px; height: 24px;
-	border-radius: 50%;
-	background: linear-gradient(135deg, #6366f1, #8b5cf6);
-	color: #fff;
-	font-size: 11px; font-weight: 700;
-	display: flex; align-items: center; justify-content: center;
-	flex-shrink: 0; margin-top: 2px;
-}
-.lp-oq-q-text {
-	flex: 1; min-width: 0;
-	font-size: 14px; font-weight: 600;
-	color: var(--text-color, #1f2937);
-	line-height: 1.5;
-}
-.lp-oq-q-marks {
-	font-size: 11px; color: #6366f1; font-weight: 700;
-	background: rgba(99,102,241,0.1);
-	padding: 2px 8px; border-radius: 10px;
-	white-space: nowrap; flex-shrink: 0;
-}
-/* ── Badges ── */
-.lp-oq-badge {
-	font-size: 11px; font-weight: 600;
-	padding: 2px 8px; border-radius: 10px;
-	border: 1px solid transparent;
-	white-space: nowrap; flex-shrink: 0;
-}
-.lp-oq-badge-pending { background: rgba(245,158,11,0.12); color: #d97706; border-color: rgba(245,158,11,0.3); }
-.lp-oq-badge-auto    { background: rgba(59,130,246,0.12);  color: #2563eb; border-color: rgba(59,130,246,0.3); }
-.lp-oq-badge-manual  { background: rgba(139,92,246,0.12); color: #7c3aed; border-color: rgba(139,92,246,0.3); }
-/* ── Textarea ── */
-.lp-oq-ta {
-	width: 100%;
-	padding: 10px 13px;
-	border: 1.5px solid rgba(99,102,241,0.22);
-	border-radius: 8px;
-	font-size: 14px; line-height: 1.6;
-	color: var(--text-color, #1f2937);
-	background: #fff;
-	resize: vertical; min-height: 78px;
-	transition: border-color 0.2s, box-shadow 0.2s;
-	font-family: inherit; box-sizing: border-box;
-}
-.lp-oq-ta:focus {
-	outline: none;
-	border-color: #6366f1;
-	box-shadow: 0 0 0 3px rgba(99,102,241,0.11);
-}
-.lp-oq-ta[readonly] {
-	background: rgba(0,0,0,0.03);
-	cursor: default;
-	border-color: rgba(0,0,0,0.08);
-	color: #6b7280;
-}
-.lp-oq-ta-err {
-	border-color: #ef4444 !important;
-	box-shadow: 0 0 0 3px rgba(239,68,68,0.1) !important;
-}
-/* ── To'g'ri javob / xato ── */
-.lp-oq-correct {
-	margin-top: 8px; padding: 8px 12px;
-	border-radius: 7px; font-size: 13px; line-height: 1.5;
-}
-.lp-oq-correct-ok {
-	background: rgba(16,185,129,0.08);
-	border: 1px solid rgba(16,185,129,0.2);
-	color: #059669;
-}
-.lp-oq-correct-no {
-	background: rgba(239,68,68,0.07);
-	border: 1px solid rgba(239,68,68,0.18);
-	color: #dc2626;
-}
-/* ── Admin feedback ── */
-.lp-oq-feedback {
-	margin-top: 8px; padding: 8px 12px;
-	background: rgba(59,130,246,0.07);
-	border: 1px solid rgba(59,130,246,0.18);
-	border-radius: 7px;
-	font-size: 13px; color: #2563eb; line-height: 1.5;
-}
-/* ── Footer ── */
-.lp-oq-footer {
-	display: flex; align-items: center;
-	gap: 12px; flex-wrap: wrap;
-	padding-top: 14px;
-	border-top: 1px solid rgba(0,0,0,0.06);
-	margin-top: 6px;
-}
-.lp-oq-hint { font-size: 12px; color: #d97706; }
-.lp-oq-pending-info {
-	width: 100%; text-align: center;
-	padding: 12px 16px;
-	background: rgba(245,158,11,0.08);
-	border: 1px solid rgba(245,158,11,0.25);
-	border-radius: 8px;
-	font-size: 13px; color: #d97706; font-weight: 500;
-}
-/* ── Error / result ── */
-.lp-oq-err { text-align: center; padding: 36px; color: #ef4444; font-size: 14px; }
-.lp-oq-result { text-align: center; padding: 32px 16px; }
-.lp-oq-result-title {
-	font-size: 20px; font-weight: 700;
-	margin-bottom: 16px;
-	color: var(--text-color, #1f2937);
-}
-.lp-oq-result-row {
-	display: flex; flex-wrap: wrap;
-	justify-content: center; gap: 8px; margin-bottom: 8px;
-}
-/* ── Spinners ── */
-.lp-oq-spinner {
-	width: 34px; height: 34px;
-	border: 3px solid rgba(99,102,241,0.15);
-	border-top: 3px solid #6366f1;
-	border-radius: 50%;
-	animation: lp-oq-spin 0.8s linear infinite;
-	display: inline-block;
-}
-.lp-oq-spinner-sm {
-	width: 14px; height: 14px;
-	border: 2px solid rgba(255,255,255,0.3);
-	border-top: 2px solid #fff;
-	border-radius: 50%;
-	animation: lp-oq-spin 0.7s linear infinite;
-	display: inline-block;
-	vertical-align: middle; margin-right: 6px;
-}
-@keyframes lp-oq-spin { to { transform: rotate(360deg); } }
-`;
-	document.head.appendChild(s);
+frappe.pages["lms-player"].on_page_show = function (wrapper) {
+    const TAB_KEY = "lms_player_active";
+    localStorage.setItem(TAB_KEY, "1");
+
+    const params = _parseUrlParams();
+
+    if (!params.lesson || !params.enrollment) {
+        $(wrapper).find(".layout-main-section").html(
+            '<div class="lms-player-error">URL parametrlari yetishmayapti. <a href="/app/lms-dashboard">Dashboard</a></div>'
+        );
+        return;
+    }
+
+    wrapper.lms_player_instance = new LMSPlayer(wrapper, params);
+};
+
+function _parseUrlParams() {
+    const stored = window._lms_player_params;
+    if (stored && stored.lesson && stored.enrollment) {
+        window._lms_player_params = null;
+        return { lesson: stored.lesson, enrollment: stored.enrollment };
+    }
+    const opts = frappe.route_options || {};
+    if (opts.lesson && opts.enrollment) {
+        frappe.route_options = null;
+        return { lesson: opts.lesson, enrollment: opts.enrollment };
+    }
+    const q = new URLSearchParams(window.location.search);
+    return {
+        lesson: q.get("lesson") || "",
+        enrollment: q.get("enrollment") || "",
+    };
 }
 
-function _injectInactivityCSS() {
-	if (document.getElementById('lms-inact-style')) return;
-	const s = document.createElement('style');
-	s.id = 'lms-inact-style';
-	s.textContent = `
-/* ── Inactivity Warning Modal ── */
-#lp-inact-modal {
-	display: none;
-	position: fixed;
-	inset: 0;
-	z-index: 99999;
-	background: rgba(0, 0, 0, 0.65);
-	backdrop-filter: blur(4px);
-	-webkit-backdrop-filter: blur(4px);
-	align-items: center;
-	justify-content: center;
-}
-#lp-inact-modal.lp-inact-visible {
-	display: flex;
-}
-.lp-inact-box {
-	background: #fff;
-	border-radius: 18px;
-	padding: 36px 32px 28px;
-	max-width: 400px;
-	width: 90%;
-	text-align: center;
-	box-shadow: 0 28px 72px rgba(0, 0, 0, 0.28);
-	animation: lp-inact-pop 0.22s cubic-bezier(.34,1.56,.64,1) both;
-}
-@keyframes lp-inact-pop {
-	from { transform: scale(0.88); opacity: 0; }
-	to   { transform: scale(1);    opacity: 1; }
-}
-.lp-inact-icon    { font-size: 52px; margin-bottom: 14px; }
-.lp-inact-title   { margin: 0 0 8px; font-size: 19px; font-weight: 700; color: #1f2937; }
-.lp-inact-sub     { font-size: 14px; color: #6b7280; margin-bottom: 6px; line-height: 1.6; }
-.lp-inact-counter {
-	font-size: 46px;
-	font-weight: 800;
-	color: #ef4444;
-	display: block;
-	margin: 8px 0 20px;
-	line-height: 1;
-	font-variant-numeric: tabular-nums;
-}
-.lp-inact-stay {
-	background: linear-gradient(135deg, #6366f1, #8b5cf6);
-	color: #fff;
-	border: none;
-	border-radius: 10px;
-	padding: 12px 32px;
-	font-size: 15px;
-	font-weight: 600;
-	cursor: pointer;
-	width: 100%;
-	transition: transform 0.15s, box-shadow 0.15s;
-}
-.lp-inact-stay:hover {
-	transform: translateY(-1px);
-	box-shadow: 0 8px 24px rgba(99,102,241,0.35);
-}
-`;
-	document.head.appendChild(s);
-}
+// ═══════════════════════════════════════════════════════════════
+// MAIN CLASS
+// ═══════════════════════════════════════════════════════════════
 
-/* ── CSS inject (idempotent) ── */
-/* ── CSS inject (idempotent) ── */
-function _injectQuizExtraCSS() {
-	if (document.getElementById('lms-qz-extra-style')) return;
-	const s = document.createElement('style');
-	s.id = 'lms-qz-extra-style';
-	s.textContent = `
-.lms-qz-map { display:flex; flex-wrap:wrap; gap:6px; padding:14px 16px; background:rgba(99,102,241,0.04); border:1px solid rgba(99,102,241,0.12); border-radius:10px; margin-bottom:18px; }
-.lms-qz-map-btn { width:34px; height:34px; border-radius:8px; border:1.5px solid rgba(99,102,241,0.25); background:#fff; font-size:12px; font-weight:700; color:#6366f1; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.15s; }
-.lms-qz-map-btn:hover { background:rgba(99,102,241,0.1); }
-.lms-qz-map-btn.qz-answered { background:#6366f1; color:#fff; border-color:#6366f1; }
-.lms-qz-map-btn.qz-current { outline:2.5px solid #6366f1; outline-offset:2px; }
-.lms-qz-prog { flex:1; height:6px; background:rgba(99,102,241,0.12); border-radius:4px; overflow:hidden; }
-.lms-qz-prog-fill { height:100%; background:linear-gradient(90deg,#6366f1,#8b5cf6); border-radius:4px; transition:width 0.3s ease; }
-.lms-qz-topbar { display:flex; align-items:center; gap:12px; margin-bottom:16px; }
-.lms-qz-counter { font-size:13px; font-weight:700; color:#6366f1; white-space:nowrap; }
-.lms-qz-timer { font-size:13px; font-weight:700; color:#ef4444; white-space:nowrap; background:rgba(239,68,68,0.08); padding:3px 10px; border-radius:8px; }
-.lms-qz-question { font-size:15px; font-weight:600; color:var(--text-color,#1f2937); line-height:1.6; margin-bottom:6px; }
-.lms-qz-marks { font-size:12px; color:#6366f1; font-weight:600; margin-bottom:14px; }
-.lms-qz-options { display:flex; flex-direction:column; gap:8px; margin-bottom:18px; }
-.lms-qz-opt { display:flex; align-items:center; gap:12px; padding:12px 16px; border:1.5px solid rgba(99,102,241,0.18); border-radius:10px; cursor:pointer; font-size:14px; transition:all 0.15s; background:#fff; user-select:none; }
-.lms-qz-opt:hover { border-color:#6366f1; background:rgba(99,102,241,0.04); }
-.lms-qz-opt--selected { border-color:#6366f1; background:rgba(99,102,241,0.09); font-weight:600; }
-.lms-qz-opt-radio { font-size:16px; color:#6366f1; flex-shrink:0; }
-.lms-qz-nav { display:flex; align-items:center; justify-content:space-between; gap:8px; padding-top:6px; border-top:1px solid rgba(0,0,0,0.06); }
-.lms-qz-nav-right { display:flex; gap:8px; margin-left:auto; }
-`;
-	document.head.appendChild(s);
-}
-
-
-
-/* ══════════════════════════════════════════════════════════════════════
-   DOM GUARDS
-══════════════════════════════════════════════════════════════════════ */
-
-function _injectInactivityModalDOM() {
-	if (document.getElementById('lp-inact-modal')) return;
-	const el = document.createElement('div');
-	el.id = 'lp-inact-modal';
-	el.setAttribute('role', 'alertdialog');
-	el.setAttribute('aria-modal', 'true');
-	el.setAttribute('aria-label', 'Faolsizlik ogohlantirishiarshamasi');
-	el.innerHTML = `
-		<div class="lp-inact-box">
-			<div class="lp-inact-icon">⏰</div>
-			<h3 class="lp-inact-title">Faolsizlik aniqlandi</h3>
-			<p class="lp-inact-sub">Siz <strong>3 daqiqa</strong> faol bo'lmadingiz.</p>
-			<span class="lp-inact-counter" id="lp-inact-counter">30</span>
-			<p class="lp-inact-sub" style="margin-bottom:20px">soniyadan so'ng tizimdan chiqasiz.</p>
-			<button class="lp-inact-stay" id="lp-inact-stay">✓ Davom etish</button>
-		</div>
-	`;
-	document.body.appendChild(el);
-}
-
-function _ensurePhotoSwipeDom() {
-	if (!window.__lms_ael_patched) {
-		const _orig = EventTarget.prototype.addEventListener;
-		EventTarget.prototype.addEventListener = function (type, fn, opts) {
-			if (this == null) return;
-			return _orig.call(this, type, fn, opts);
-		};
-		window.__lms_ael_patched = true;
-	}
-	try {
-		if (document.querySelector('.pswp')) return;
-		const pswp = document.createElement('div');
-		pswp.className = 'pswp';
-		pswp.setAttribute('tabindex', '-1');
-		pswp.setAttribute('role', 'dialog');
-		pswp.setAttribute('aria-hidden', 'true');
-		pswp.style.cssText = 'display:none!important';
-		pswp.innerHTML = [
-			'<div class="pswp__bg"></div>',
-			'<div class="pswp__scroll-wrap">',
-			'<div class="pswp__container">',
-			'<div class="pswp__item"></div><div class="pswp__item"></div><div class="pswp__item"></div>',
-			'</div>',
-			'<div class="pswp__ui pswp__ui--hidden">',
-			'<div class="pswp__top-bar">',
-			'<div class="pswp__counter"></div>',
-			'<button class="pswp__button pswp__button--close"></button>',
-			'<button class="pswp__button pswp__button--share"></button>',
-			'<button class="pswp__button pswp__button--fs"></button>',
-			'<button class="pswp__button pswp__button--zoom"></button>',
-			'<div class="pswp__preloader"><div class="pswp__preloader__icn"><div class="pswp__preloader__cut"><div class="pswp__preloader__donut"></div></div></div></div>',
-			'</div>',
-			'<div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">',
-			'<div class="pswp__share-tooltip"><a></a></div>',
-			'</div>',
-			'<button class="pswp__button pswp__button--arrow--left"></button>',
-			'<button class="pswp__button pswp__button--arrow--right"></button>',
-			'<div class="pswp__caption"><div class="pswp__caption__center"></div></div>',
-			'</div></div>'
-		].join('');
-		document.body.appendChild(pswp);
-	} catch (e) {
-		console.warn('[LMS] PhotoSwipe DOM guard failed silently:', e);
-	}
-}
-
-function _loadYouTubeAPI() {
-	if (window._ytApiReady) return;
-	window._ytApiReady = new Promise((resolve) => {
-		if (window.YT && window.YT.Player) { resolve(window.YT); return; }
-		const prev = window.onYouTubeIframeAPIReady;
-		window.onYouTubeIframeAPIReady = function () {
-			try { if (prev) prev(); } catch (e) { }
-			resolve(window.YT);
-		};
-		if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
-			const s = document.createElement('script');
-			s.src = 'https://www.youtube.com/iframe_api';
-			s.async = true;
-			document.head.appendChild(s);
-		}
-	});
-}
-
-function _extractYouTubeId(url) {
-	if (!url) return null;
-	if (/^[A-Za-z0-9_\-]{11}$/.test(url.trim())) return url.trim();
-	const patterns = [
-		/youtu\.be\/([A-Za-z0-9_\-]{11})/,
-		/youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/)([A-Za-z0-9_\-]{11})/,
-	];
-	for (const pat of patterns) {
-		const m = url.match(pat);
-		if (m) return m[1];
-	}
-	return null;
-}
-
-
-/* ══════════════════════════════════════════════════════════════════════
-/* ══════════════════════════════════════════════════════════════════════
-   InactivityEngine  v2  (Page Visibility API + Focus Tracking)
-   ──────────────────────────────────────────────────────────────────────
-   Dunyo standarti (Coursera / Udemy / LinkedIn Learning):
-   - Faqat page VISIBLE va FOCUSED bo'lgandagina idle timer ishlaydi.
-   - Boshqa tab/oynada ishlayotgan bo'lsa — timer MUZLATILADI.
-   - Page visibility: document.visibilitychange API
-   - Focus:          window focus/blur events
-   - 3 daqiqa faolsizlik → 30 soniya ogohlantirish → logout
-══════════════════════════════════════════════════════════════════════ */
-class InactivityEngine {
-	static INACTIVE_MS   = 3 * 60 * 1000;  // 3 daqiqa (sof faol vaqt)
-	static COUNTDOWN_SEC = 30;              // 30 soniya ogohlantirish
-
-	constructor({ onWarn, onCountdown, onStay, onLogout }) {
-		this.onWarn      = onWarn;
-		this.onCountdown = onCountdown;
-		this.onStay      = onStay;
-		this.onLogout    = onLogout;
-
-		this._activeMs       = 0;        // sof faol vaqt akkumulyatori
-		this._segmentStart   = null;     // joriy faol segment boshi
-		this._lastUserAct    = Date.now();
-		this._warnActive     = false;
-		this._remaining      = 0;
-		this._checkTimer     = null;
-		this._countdownTimer = null;
-
-		// Faqat bu page ichidagi harakatlar kuzatiladi
-		this._EVENTS = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll', 'wheel'];
-		this._actHandler        = this._onUserActivity.bind(this);
-		this._visibilityHandler = this._onVisibilityChange.bind(this);
-		this._focusHandler      = this._onFocus.bind(this);
-		this._blurHandler       = this._onBlur.bind(this);
-	}
-
-	/** Kuzatishni boshlaydi */
-	start() {
-		this._activeMs     = 0;
-		this._lastUserAct  = Date.now();
-		this._warnActive   = false;
-
-		// Foydalanuvchi harakatlari
-		this._EVENTS.forEach(e =>
-			document.addEventListener(e, this._actHandler, { passive: true })
-		);
-		// Page visibility (boshqa tabga o'tdi/qaytdi)
-		document.addEventListener('visibilitychange', this._visibilityHandler);
-		// Window focus/blur (boshqa oynaga o'tdi)
-		window.addEventListener('focus', this._focusHandler);
-		window.addEventListener('blur',  this._blurHandler);
-
-		// Page visible va focused bo'lsa segmentni boshlaydi
-		if (this._isPageActive()) this._startSegment();
-
-		// Har 5 soniyada idle tekshiruvi
-		this._checkTimer = setInterval(() => this._check(), 5_000);
-	}
-
-	/** To'xtatish */
-	stop() {
-		this._stopSegment();
-		this._EVENTS.forEach(e => document.removeEventListener(e, this._actHandler));
-		document.removeEventListener('visibilitychange', this._visibilityHandler);
-		window.removeEventListener('focus', this._focusHandler);
-		window.removeEventListener('blur',  this._blurHandler);
-		clearInterval(this._checkTimer);
-		clearInterval(this._countdownTimer);
-		this._checkTimer = this._countdownTimer = null;
-	}
-
-	/** Video ijrosi paytida tashqaridan chaqiriladi — faollik belgisi */
-	pulse() {
-		if (!this._warnActive) this._onUserActivity();
-	}
-
-	/** "Davom etish" tugmasi */
-	stayActive() {
-		this._activeMs    = 0;
-		this._lastUserAct = Date.now();
-		this._warnActive  = false;
-		clearInterval(this._countdownTimer);
-		this._countdownTimer = null;
-		if (this._isPageActive()) this._startSegment();
-		if (this.onStay) this.onStay();
-	}
-
-	// ── Private ───────────────────────────────────────────────────────────
-
-	/** Page visible AND window focused — sof faol holat */
-	_isPageActive() {
-		return document.visibilityState === 'visible' && document.hasFocus();
-	}
-
-	/** Faol segment boshlanishi */
-	_startSegment() {
-		if (this._segmentStart === null) {
-			this._segmentStart = Date.now();
-		}
-	}
-
-	/** Faol segment tugashi — o'tgan vaqtni akkumulyatorga qo'shadi */
-	_stopSegment() {
-		if (this._segmentStart !== null) {
-			this._activeMs    += Date.now() - this._segmentStart;
-			this._segmentStart = null;
-		}
-	}
-
-	_onUserActivity() {
-		if (this._warnActive) { this.stayActive(); return; }
-		this._lastUserAct = Date.now();
-		// Foydalanuvchi harakat qildi → idle akkumulyatorni reset
-		this._activeMs = 0;
-		if (this._isPageActive()) this._startSegment();
-	}
-
-	_onVisibilityChange() {
-		if (document.visibilityState === 'hidden') {
-			// Tab background ga o'tdi — timer muzlatiladi
-			this._stopSegment();
-			// Ogohlantirish chiqib turgan bo'lsa — yashiriladi (boshqa tabda ko'rinmasin)
-			if (this._warnActive) {
-				this._warnActive = false;
-				clearInterval(this._countdownTimer);
-				this._countdownTimer = null;
-				if (this.onStay) this.onStay();
-			}
-		} else {
-			// Tab qaytdi — foydalanuvchi faol bo'lsa timer davom etadi
-			if (document.hasFocus()) this._startSegment();
-		}
-	}
-
-	_onFocus() {
-		// Oyna focus oldi — segment boshlaydi
-		if (document.visibilityState === 'visible') this._startSegment();
-	}
-
-	_onBlur() {
-		// Oyna focus yo'qotdi — segment to'xtatiladi
-		this._stopSegment();
-	}
-
-	_check() {
-		if (this._warnActive) return;
-		if (!this._isPageActive()) return;  // background — tekshirma
-
-		// Segment ichida foydalanuvchi harakatsiz qoldi → idle vaqtni hisoblash
-		const idleMs = this._segmentStart !== null
-			? (Date.now() - this._lastUserAct)
-			: 0;
-
-		if (idleMs >= InactivityEngine.INACTIVE_MS) {
-			this._stopSegment();
-			this._triggerWarn();
-		}
-	}
-
-	_triggerWarn() {
-		this._warnActive = true;
-		this._remaining  = InactivityEngine.COUNTDOWN_SEC;
-		if (this.onWarn)      this.onWarn();
-		if (this.onCountdown) this.onCountdown(this._remaining);
-
-		this._countdownTimer = setInterval(() => {
-			this._remaining--;
-			if (this._remaining <= 0) {
-				clearInterval(this._countdownTimer);
-				this._countdownTimer = null;
-				this._warnActive = false;
-				if (this.onLogout) this.onLogout();
-			} else {
-				if (this.onCountdown) this.onCountdown(this._remaining);
-			}
-		}, 1000);
-	}
-}
-
-
-/* ══════════════════════════════════════════════════════════════════════
-   SessionManager
-   ──────────────────────────────────────────────────────────────────────
-   LMS Time Log doctype bilan ishlaydi.
-   - start()          → yangi sessiya yozuvini yaratadi (server)
-   - ping()           → 30s heartbeat: session_end va duration_sec yangilaydi
-   - switchActivity() → joriy sessiyani yopib, yangi activity_type bilan yangi ochadi
-   - end()            → sessiyani yakunlaydi; sendBeacon ishlatadi (page unload ham ishlaydi)
-══════════════════════════════════════════════════════════════════════ */
-class SessionManager {
-	static PING_INTERVAL_MS = 30_000;  // 30 soniya
-
-	constructor(lessonName) {
-		this.lessonName = lessonName;
-		this._sessionId = null;
-		this._activityType = 'Video';
-		this._pingTimer = null;
-		this._starting = false;   // race condition oldini olish
-	}
-
-	/** Yangi sessiya boshlaydi */
-	start(activityType = 'Video') {
-		if (this._starting) return;
-		this._starting = true;
-		this._activityType = activityType;
-
-		frappe.call({
-			method: 'pro_lms.lms_for_dbr.page.lms_player.lms_player.start_session',
-			args: { lesson_name: this.lessonName, activity_type: activityType },
-			callback: (r) => {
-				this._starting = false;
-				if (r.message && !r.message.error) {
-					this._sessionId = r.message.session_id;
-					this._startPing();
-				}
-			},
-			error: () => { this._starting = false; }
-		});
-	}
-
-	/**
-	 * Activity turini almashtiradi.
-	 * Masalan: Video → Quiz yoki Quiz → Video.
-	 * Joriy sessiya yopiladi, yangi sessiya ochiladi.
-	 */
-	switchActivity(newType) {
-		if (newType === this._activityType && this._sessionId) return;
-		this.end('activity_switch');
-		setTimeout(() => this.start(newType), 300);
-	}
-
-	/** Tashqi manba (masalan, ytPoll) tomonidan ping yuborish */
-	ping() {
-		if (!this._sessionId) return;
-		frappe.call({
-			method: 'pro_lms.lms_for_dbr.page.lms_player.lms_player.ping_session',
-			args: { session_id: this._sessionId, activity_type: this._activityType },
-			callback: (r) => {
-				// Agar server "restart kerak" desa — yangi sessiya boshlaydi
-				if (r.message && r.message.restart) {
-					this._sessionId = null;
-					this.start(this._activityType);
-				}
-			}
-		});
-	}
-
-	/**
-	 * Sessiyani yakunlaydi.
-	 * navigator.sendBeacon ishlatiladi — page unload paytida ham ishonchli jo'natiladi.
-	 * Frappe v15: X-Frappe-CSRF-Token form_dict dan ham qabul qilinadi.
-	 */
-	end(reason = 'normal') {
-		if (!this._sessionId) return;
-		this._stopPing();
-		const sid = this._sessionId;
-		this._sessionId = null;
-
-		const fd = new FormData();
-		fd.append('cmd', 'pro_lms.lms_for_dbr.page.lms_player.lms_player.end_session');
-		fd.append('session_id', sid);
-		fd.append('reason', reason);
-		fd.append('X-Frappe-CSRF-Token', frappe.csrf_token || '');
-
-		const url = '/api/method/pro_lms.lms_for_dbr.page.lms_player.lms_player.end_session';
-
-		if (navigator.sendBeacon) {
-			navigator.sendBeacon(url, fd);
-		} else {
-			// Fallback: synchronous XHR (deprecated lekin ishonchli)
-			try {
-				const xhr = new XMLHttpRequest();
-				xhr.open('POST', url, false);  // sync
-				xhr.setRequestHeader('X-Frappe-CSRF-Token', frappe.csrf_token || '');
-				xhr.send(fd);
-			} catch (e) { /* silent */ }
-		}
-	}
-
-	_startPing() {
-		this._stopPing();
-		this._pingTimer = setInterval(() => this.ping(), SessionManager.PING_INTERVAL_MS);
-	}
-
-	_stopPing() {
-		clearInterval(this._pingTimer);
-		this._pingTimer = null;
-	}
-
-	get currentActivity() { return this._activityType; }
-	get hasActiveSession() { return !!this._sessionId; }
-}
-
-
-/* ══════════════════════════════════════════════════════════════════════
-   LMSPlayer
-══════════════════════════════════════════════════════════════════════ */
 class LMSPlayer {
-	constructor(wrapper) {
-		this.wrapper = wrapper;
-		this.lesson_name = this._resolveLesson();
-		this.data = null;
-		this.save_interval = 5000;
-		this.video_element = null;
-		this.ytPlayer = null;
-		this.ytVideoId = null;
-		this._ytLastKnownTime = 0;
-		this._ytWatchedSec = 0;
-		this._ytSaveTimer = null;
+    constructor(wrapper, params) {
+        this.wrapper = wrapper;
+        this.$main = $(wrapper).find(".layout-main-section");
+        this.params = params;
+        this.data = null;
+        this.videoEngine = null;
+        this.quizEngine = null;
+        this.inactivityManager = null;
+        this.timeLogger = null;
+        this.currentActivity = "Video";
+        this._destroyed = false;
+        this._progressInterval = null;
+        this._allIntervals = [];
+        this._allListeners = [];
 
-		// ── Time tracking ──────────────────────────────────────────────
-		this.sessionManager = null;   // SessionManager — sessiyani boshqaradi
-		this.inactivityEngine = null;   // InactivityEngine — idle kuzatadi
+        this._render_skeleton();
+        this._load_data();
+    }
 
-		this._init();
-	}
+    _render_skeleton() {
+        this.$main.html(`
+            <div class="lms-player-wrapper" id="lms-player-root">
+                <div class="lms-player-sidebar" id="lms-sidebar">
+                    <div class="lms-sidebar-header">
+                        <button class="lms-sidebar-close" id="lms-sidebar-close">✕</button>
+                        <div class="lms-sidebar-title">Kurs tuzilmasi</div>
+                    </div>
+                    <div class="lms-sidebar-body" id="lms-sidebar-body">
+                        <div class="lms-loading-spin"></div>
+                    </div>
+                </div>
+                <div class="lms-player-main" id="lms-player-main">
+                    <div class="lms-player-topbar">
+                        <button class="lms-hamburger" id="lms-hamburger">☰</button>
+                        <span class="lms-topbar-title" id="lms-topbar-title">Yuklanmoqda...</span>
+                        <span class="lms-enrollment-badge" id="lms-enr-badge"></span>
+                        <!-- FIX 3: Dashboard button in topbar -->
+                        <button class="lms-btn lms-btn-secondary lms-dash-back-btn" id="lms-dash-btn" title="Dashboardga qaytish">
+                            ← Dashboard
+                        </button>
+                    </div>
+                    <div class="lms-player-video-wrap" id="lms-video-wrap">
+                        <div class="lms-video-loading"><div class="lms-loading-spin"></div></div>
+                    </div>
+                    <!-- FIX 2: min-height, overflow-y:auto added inline for content area -->
+                    <div class="lms-player-content" id="lms-player-content" style="min-height:420px; overflow-y:auto;"></div>
+                    <div class="lms-player-nav" id="lms-player-nav"></div>
+                </div>
+                <div class="lms-mobile-bottom-nav" id="lms-mobile-nav"></div>
+            </div>
+            <div class="lms-sidebar-overlay" id="lms-sidebar-overlay"></div>
+            <div class="lms-inactivity-overlay" id="lms-inactivity-overlay" style="display:none">
+                <div class="lms-inactivity-box">
+                    <div class="lms-inactivity-icon">⚠️</div>
+                    <h3>Siz faol emassiz!</h3>
+                    <p>Sessiya <strong id="lms-inactivity-countdown">30</strong> soniyadan keyin tugatiladi.</p>
+                    <div class="lms-inactivity-actions">
+                        <button class="lms-btn lms-btn-primary" id="lms-inactivity-continue">✅ Davom etish</button>
+                        <button class="lms-btn lms-btn-danger" id="lms-inactivity-exit">🚪 Chiqish</button>
+                    </div>
+                </div>
+            </div>
+        `);
+    }
 
-	_resolveLesson() {
-		if (frappe.route_options && frappe.route_options.lesson) {
-			const val = frappe.route_options.lesson;
-			delete frappe.route_options.lesson;
-			return val;
-		}
-		const qs = new URLSearchParams(window.location.search).get('lesson');
-		if (qs) return qs;
-		try {
-			const hash = window.location.hash || '';
-			const qi = hash.indexOf('?');
-			if (qi !== -1) return new URLSearchParams(hash.slice(qi)).get('lesson') || null;
-		} catch (e) { }
-		return null;
-	}
+    _load_data() {
+        frappe
+            .xcall("pro_lms.lms_for_dbr.api.player.get_player_data", {
+                lesson_name: this.params.lesson,
+                enrollment_name: this.params.enrollment,
+            })
+            .then((data) => {
+                if (this._destroyed) return;
+                this.data = data;
+                this._render_all();
+            })
+            .catch((err) => {
+                this.$main.find("#lms-player-root").html(`
+                    <div class="lms-player-error">
+                        ⚠️ Ma'lumotlarni yuklashda xato yuz berdi.
+                        <a href="/app/lms-dashboard">Dashboardga qaytish</a>
+                    </div>
+                `);
+            });
+    }
 
-	_init() {
-		const $b = this.wrapper.querySelector('.layout-main-section') || this.wrapper;
-		this.$b = $b;
-		if (!this.lesson_name) {
-			$b.innerHTML = this._err(
-				'Dars topilmadi',
-				"URL da <code>?lesson=Lesson-00001</code> parametri yo'q."
-			);
-			return;
-		}
-		$b.innerHTML = '<div class="lp-loading">Yuklanmoqda...</div>';
-		frappe.call({
-			method: 'pro_lms.lms_for_dbr.page.lms_player.lms_player.get_lesson_data',
-			args: { lesson_name: this.lesson_name },
-			callback: (r) => {
-				if (!r.message || r.message.error) {
-					$b.innerHTML = this._err((r.message && r.message.message) || 'Dars topilmadi');
+    _render_all() {
+        const d = this.data;
+        this.$main.find("#lms-topbar-title").text(d.current_lesson.lesson_title);
+        if (d.enrollment.status === "Completed") {
+            this.$main.find("#lms-enr-badge").html('<span class="lms-badge lms-badge-green">Kurs tugatilgan ✓</span>');
+        }
+
+        this._render_sidebar();
+        this._render_video();
+        this._render_tabs();
+        this._render_nav();
+        this._render_mobile_nav();
+        this._bind_global_events();
+
+        this.inactivityManager = new InactivityManager(
+            150, 30,
+            () => this._show_inactivity_warning(),
+            () => this._end_session("inactivity")
+        );
+
+        this.timeLogger = new TimeLogger(
+            d.time_log_name,
+            this.params.lesson,
+            this.params.enrollment,
+            "Video"
+        );
+
+        this._progressInterval = setInterval(() => {
+            this._save_progress();
+        }, 10000);
+        this._allIntervals.push(this._progressInterval);
+
+        this._beforeUnloadHandler = () => {
+            localStorage.removeItem("lms_player_active");
+            const ve = this.videoEngine;
+            const fd = new FormData();
+            fd.append("cmd", "pro_lms.lms_for_dbr.api.player.save_on_unload");
+            fd.append("lesson_name", this.params.lesson);
+            fd.append("enrollment_name", this.params.enrollment);
+            fd.append("time_log_name", this.timeLogger ? this.timeLogger.currentLogName : "");
+            fd.append("watch_time_sec", ve ? ve.watchTimeSec : 0);
+            fd.append("last_position_sec", ve ? ve.maxWatchedPosition : 0);
+            fd.append("completion_percent", ve ? ve.completionPercent : 0);
+            fd.append("csrf_token", frappe.csrf_token);
+            navigator.sendBeacon("/api/method/pro_lms.lms_for_dbr.api.player.save_on_unload", fd);
+        };
+        window.addEventListener("beforeunload", this._beforeUnloadHandler);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // SECTION 2: Video Player Engine
+    // ═══════════════════════════════════════════════════════════════
+
+    _render_video() {
+        const lesson = this.data.current_lesson;
+        const progress = this.data.progress;
+        const $wrap = this.$main.find("#lms-video-wrap");
+
+        if (!lesson.video_url) {
+            $wrap.html(`
+                <div class="lms-no-video">
+                    <div class="lms-no-video-icon">🎬</div>
+                    <p>Bu dars uchun video mavjud emas</p>
+                </div>
+            `);
+            return;
+        }
+
+        $wrap.html(`
+            <div class="lms-video-container" id="lms-video-container">
+                <div class="lms-video-embed" id="lms-video-embed"></div>
+                <div class="lms-video-click-overlay" id="lms-video-click-overlay"></div>
+                <div class="lms-video-error" id="lms-video-error" style="display:none">
+                    <p>⚠️ Video yuklanmadi. Quiz va topshiriqlarga o'tishingiz mumkin.</p>
+                </div>
+            </div>
+            <div class="lms-video-controls-wrap" id="lms-video-controls-wrap">
+                <div class="lms-seekbar-container" id="lms-seekbar-container">
+                    <div class="lms-seekbar-track" id="lms-seekbar-track">
+                        <div class="lms-seekbar-watched" id="lms-seekbar-watched"></div>
+                        <div class="lms-seekbar-current" id="lms-seekbar-current"></div>
+                        <div class="lms-seekbar-thumb" id="lms-seekbar-thumb"></div>
+                    </div>
+                </div>
+                <div class="lms-controls-bar" id="lms-controls-bar">
+                    <button class="lms-ctrl-btn" id="lms-ctrl-playpause" title="Ijro (Space)">▶</button>
+                    <button class="lms-ctrl-btn lms-ctrl-sm" id="lms-ctrl-back5" title="-5s">⏪</button>
+                    <button class="lms-ctrl-btn lms-ctrl-sm" id="lms-ctrl-fwd5" title="+5s">⏩</button>
+                    <span class="lms-ctrl-time" id="lms-ctrl-time">0:00 / 0:00</span>
+                    <div class="lms-ctrl-spacer"></div>
+                    <div class="lms-volume-wrap">
+                        <button class="lms-ctrl-btn lms-ctrl-sm" id="lms-ctrl-mute">🔊</button>
+                        <input type="range" class="lms-volume-slider" id="lms-volume-slider"
+                               min="0" max="1" step="0.05" value="1">
+                    </div>
+                    <div class="lms-speed-wrap">
+                        <button class="lms-ctrl-btn lms-ctrl-sm" id="lms-ctrl-speed">1x</button>
+                        <div class="lms-speed-menu" id="lms-speed-menu" style="display:none">
+                            ${["0.5", "0.75", "1", "1.25", "1.5", "2"]
+                                .map(s => `<div class="lms-speed-opt" data-speed="${s}">${s}x</div>`)
+                                .join("")}
+                        </div>
+                    </div>
+                    <button class="lms-ctrl-btn lms-ctrl-sm" id="lms-ctrl-fullscreen">⛶</button>
+                </div>
+            </div>
+        `);
+
+        this.videoEngine = new VideoEngine(
+            this.$main.find("#lms-video-embed")[0],
+            lesson.video_url,
+            lesson.video_duration_sec,
+            progress.last_position_sec,
+            progress.max_watched_position,
+            {
+                onTimeUpdate: (pos, maxWatched, watchTimeSec) =>
+                    this._on_video_time_update(pos, maxWatched, watchTimeSec),
+                onPlay: () => {
+                    this.$main.find("#lms-ctrl-playpause").text("⏸");
+                },
+                onPause: () => {
+                    this.$main.find("#lms-ctrl-playpause").text("▶");
+                },
+                onError: () => {
+                    this.$main.find("#lms-video-error").show();
+                },
+            }
+        );
+
+        this._bind_video_controls();
+    }
+
+    _on_video_time_update(pos, maxWatched, watchTimeSec) {
+        const dur = this.data.current_lesson.video_duration_sec || 1;
+        const pct = Math.min(100, (maxWatched / dur) * 100);
+
+        this.$main.find("#lms-seekbar-watched").css("width", pct + "%");
+        this.$main.find("#lms-seekbar-current").css("width", Math.min(100, (pos / dur) * 100) + "%");
+        this.$main.find("#lms-seekbar-thumb").css("left", Math.min(100, (pos / dur) * 100) + "%");
+        this.$main.find("#lms-ctrl-time").text(_fmtTime(pos) + " / " + _fmtTime(dur));
+
+        if (this.videoEngine) {
+            this.videoEngine.watchTimeSec = watchTimeSec;
+            this.videoEngine.completionPercent = pct;
+            this.videoEngine.maxWatchedPosition = maxWatched;
+        }
+
+        const minWatch = this.data.current_lesson.minimum_watch_percent || 80;
+        if (pct >= minWatch && !this._videoWatchMet) {
+            this._videoWatchMet = true;
+            this._refresh_nav();
+        }
+    }
+
+    _bind_video_controls() {
+        const ve = () => this.videoEngine;
+        const $root = this.$main;
+
+        $root.on("click", "#lms-ctrl-playpause", () => ve() && ve().togglePlay());
+        $root.on("click", "#lms-ctrl-back5", () => ve() && ve().seek(-5));
+        $root.on("click", "#lms-ctrl-fwd5", () => ve() && ve().seek(5));
+        $root.on("click", "#lms-video-click-overlay", () => ve() && ve().togglePlay());
+
+        $root.on("input", "#lms-volume-slider", (e) => {
+            const vol = parseFloat(e.target.value);
+            ve() && ve().setVolume(vol);
+            $root.find("#lms-ctrl-mute").text(vol === 0 ? "🔇" : "🔊");
+        });
+
+        $root.on("click", "#lms-ctrl-mute", () => {
+            if (!ve()) return;
+            const muted = ve().toggleMute();
+            $root.find("#lms-ctrl-mute").text(muted ? "🔇" : "🔊");
+            $root.find("#lms-volume-slider").val(muted ? 0 : ve().volume);
+        });
+
+        $root.on("click", "#lms-ctrl-speed", () => {
+            const $menu = $root.find("#lms-speed-menu");
+            $menu.toggle();
+        });
+
+        $root.on("click", ".lms-speed-opt", (e) => {
+            const speed = parseFloat($(e.currentTarget).data("speed"));
+            ve() && ve().setPlaybackRate(speed);
+            $root.find("#lms-ctrl-speed").text(speed + "x");
+            $root.find("#lms-speed-menu").hide();
+        });
+
+        $root.on("click", "#lms-ctrl-fullscreen", () => {
+            const container = document.getElementById("lms-video-container");
+            if (container) {
+                if (!document.fullscreenElement) {
+                    container.requestFullscreen && container.requestFullscreen();
+                } else {
+                    document.exitFullscreen && document.exitFullscreen();
+                }
+            }
+        });
+
+        const $track = $root.find("#lms-seekbar-track");
+        $track.on("click", (e) => {
+            if (!ve()) return;
+            const rect = $track[0].getBoundingClientRect();
+            const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+            const targetSec = ratio * (this.data.current_lesson.video_duration_sec || 0);
+            ve().seekToAbs(targetSec);
+        });
+
+        const kbHandler = (e) => {
+            const tag = document.activeElement.tagName.toLowerCase();
+            if (tag === "input" || tag === "textarea") return;
+            if (e.code === "Space") { e.preventDefault(); ve() && ve().togglePlay(); }
+            if (e.code === "ArrowLeft") { e.preventDefault(); ve() && ve().seek(-5); }
+            if (e.code === "ArrowRight") { e.preventDefault(); ve() && ve().seek(5); }
+            if (e.code === "KeyM") { ve() && ve().toggleMute(); }
+            if (e.code === "KeyF") { $root.find("#lms-ctrl-fullscreen").trigger("click"); }
+        };
+        document.addEventListener("keydown", kbHandler);
+        this._allListeners.push(() => document.removeEventListener("keydown", kbHandler));
+
+        $root.find("#lms-video-embed, #lms-video-click-overlay").on("contextmenu", (e) => e.preventDefault());
+    }
+
+    _save_progress() {
+        if (!this.videoEngine || !this.data) return;
+        const ve = this.videoEngine;
+        frappe.xcall("pro_lms.lms_for_dbr.api.player.save_video_progress", {
+            lesson_name: this.params.lesson,
+            enrollment_name: this.params.enrollment,
+            watch_time_sec: ve.watchTimeSec,
+            last_position_sec: ve.maxWatchedPosition,
+            completion_percent: ve.completionPercent,
+        }).then((res) => {
+            if (res.is_completed && !this._lessonVideoComplete) {
+                this._lessonVideoComplete = true;
+                this._refresh_nav();
+            }
+        }).catch(() => {});
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // SECTION 3: Sidebar Tree
+    // ═══════════════════════════════════════════════════════════════
+
+    _render_sidebar() {
+        const sidebar = this.data.sidebar;
+        const $body = this.$main.find("#lms-sidebar-body");
+        const course = this.data.course;
+
+        let html = `
+            <div class="lms-sidebar-course-title">${_esc(course.course_name)}</div>
+            <div class="lms-sidebar-progress">
+                ${_progressBar(this._calc_course_progress())}
+            </div>
+        `;
+
+        for (const sec of sidebar.sections) {
+            const done = sec.completion.done;
+            const total = sec.completion.total;
+            const secLocked = sec.is_locked;
+            const uid = _uid();
+
+            html += `
+                <div class="lms-sidebar-section${secLocked ? " lms-section-locked" : ""}">
+                    <div class="lms-sidebar-sec-header" data-toggle="${uid}">
+                        <span class="lms-sidebar-sec-icon">${secLocked ? "🔒" : "📁"}</span>
+                        <span class="lms-sidebar-sec-title">${_esc(sec.section_title)}</span>
+                        <span class="lms-sidebar-sec-count">${done}/${total} ✓</span>
+                        <span class="lms-sidebar-toggle-icon">▼</span>
+                    </div>
+                    <div class="lms-sidebar-sec-lessons" id="${uid}">
+            `;
+
+            for (const lesson of sec.lessons) {
+                html += this._lesson_sidebar_node(lesson);
+            }
+
+            html += `</div></div>`;
+        }
+
+        $body.html(html);
+    }
+
+    _lesson_sidebar_node(lesson) {
+        const isCurrent = lesson.is_current;
+        const isLocked = lesson.is_locked;
+        const isDone = lesson.is_completed;
+        const inProgress = !isDone && lesson.completion_percent > 0;
+
+        let icon = "⚪";
+        let cls = "";
+        if (isLocked) { icon = "🔒"; cls = "lms-lesson-locked"; }
+        else if (isCurrent) { icon = "🔵"; cls = "lms-lesson-current"; }
+        else if (isDone) { icon = "✅"; cls = "lms-lesson-done"; }
+        else if (inProgress) { icon = "🟡"; cls = "lms-lesson-inprogress"; }
+
+        const dur = _fmtDuration(lesson.video_duration_sec);
+        const tags = [
+            lesson.has_quiz ? "📝" : "",
+            lesson.has_open_questions ? "❓" : "",
+            lesson.has_assignment ? "📎" : "",
+        ].filter(Boolean).join(" ");
+
+        return `
+            <div class="lms-sidebar-lesson ${cls}"
+                 data-lesson="${_esc(lesson.lesson_name)}"
+                 data-locked="${isLocked ? 1 : 0}"
+                 title="${isLocked ? "Avvalgi darsni tugating" : _esc(lesson.lesson_title)}">
+                <span class="lms-lesson-icon">${icon}</span>
+                <span class="lms-lesson-text">${_esc(lesson.lesson_title)}</span>
+                <span class="lms-lesson-meta">
+                    ${tags ? `<span class="lms-lesson-tags">${tags}</span>` : ""}
+                    <span class="lms-lesson-dur">[${dur}]</span>
+                </span>
+            </div>
+        `;
+    }
+
+    _calc_course_progress() {
+        const sections = this.data.sidebar.sections;
+        let total = 0, done = 0;
+        for (const sec of sections) {
+            for (const l of sec.lessons) {
+                total++;
+                if (l.is_completed) done++;
+            }
+        }
+        return total > 0 ? Math.round((done / total) * 100) : 0;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // SECTION 4: Content Tabs
+    // ═══════════════════════════════════════════════════════════════
+
+    _render_tabs() {
+    const lesson = this.data.current_lesson;
+    const $content = this.$main.find("#lms-player-content");
+
+    const tabs = [{ id: "tab-desc", label: "📋 Tavsif", always: true }];
+    if (lesson.has_quiz) tabs.push({ id: "tab-quiz", label: "📝 Quiz" });
+    if (lesson.has_open_questions) tabs.push({ id: "tab-oq", label: "❓ Ochiq savollar" });
+    if (lesson.has_assignment) tabs.push({ id: "tab-assign", label: "📎 Topshiriq" });
+
+    const tabsHtml = tabs
+        .map(
+            (t, i) =>
+                `<button class="lms-tab-btn${i === 0 ? " active" : ""}"
+                     data-tab="${t.id}">${t.label}</button>`
+        )
+        .join("");
+
+    $content.html(`
+        <div class="lms-tabs-bar">${tabsHtml}</div>
+        <div class="lms-tab-content" id="lms-tab-content"
+             style="min-height:380px; padding:20px 24px; overflow-y:auto; box-sizing:border-box;"></div>
+    `);
+
+    // Description tab inline, qolganlar floating panel
+    this._switch_tab("tab-desc");
+}
+
+   _switch_tab(tabId) {
+    this.$main.find(".lms-tab-btn").removeClass("active");
+    this.$main.find(`.lms-tab-btn[data-tab="${tabId}"]`).addClass("active");
+
+    // tab-desc — inline, boshqalar floating panel
+    if (tabId === "tab-desc") {
+        this._close_floating_panel();
+        const $tc = this.$main.find("#lms-tab-content");
+        $tc.html(this._render_description_tab());
+        this._switch_time_log_activity("Video");
+        return;
+    }
+
+    // Floating panel orqali ko'rsat
+    const titles = {
+        "tab-quiz":   "📝 Quiz",
+        "tab-oq":     "❓ Ochiq savollar",
+        "tab-assign": "📎 Topshiriq",
+    };
+
+    this._open_floating_panel(titles[tabId] || "", tabId);
+}
+
+_open_floating_panel(title, tabId) {
+    // Avvalgisini yop
+    this._close_floating_panel();
+
+    const $playerMain = this.$main.find("#lms-player-main");
+    $playerMain.css("position", "relative");
+
+    // Overlay
+    $playerMain.append(`<div class="lms-floating-panel-overlay" id="lms-fp-overlay"></div>`);
+
+    // Panel
+    $playerMain.append(`
+        <div class="lms-floating-panel" id="lms-floating-panel">
+            <div class="lms-floating-panel-header">
+                <span class="lms-floating-panel-title">${title}</span>
+                <button class="lms-floating-panel-close" id="lms-fp-close">✕</button>
+            </div>
+            <div class="lms-floating-panel-body" id="lms-fp-body">
+                <div class="lms-loading-spin"></div>
+            </div>
+        </div>
+    `);
+
+    // Close handlers
+    this.$main.on("click", "#lms-fp-close, #lms-fp-overlay", () => {
+        this._close_floating_panel();
+        // tab-desc ga qaytish
+        this.$main.find(".lms-tab-btn").removeClass("active");
+        this.$main.find('.lms-tab-btn[data-tab="tab-desc"]').addClass("active");
+    });
+
+    const $body = this.$main.find("#lms-fp-body");
+
+    if (tabId === "tab-quiz") {
+        if (!this.quizEngine) {
+            this.quizEngine = new QuizEngine(
+                $body[0],
+                this.data.quiz,
+                this.data.current_lesson,
+                this.params,
+                (result) => this._on_quiz_result(result)
+            );
+        } else {
+            this.quizEngine.mount($body[0]);
+        }
+        this._switch_time_log_activity("Quiz");
+
+    } else if (tabId === "tab-oq") {
+        $body.html(this._render_oq_tab());
+        this._bind_oq_events_in($body);
+        this._switch_time_log_activity("Open Question");
+
+    } else if (tabId === "tab-assign") {
+        $body.html(this._render_assignment_tab());
+        this._bind_assignment_events_in($body);
+        this._switch_time_log_activity("Reading");
+    }
+}
+
+_close_floating_panel() {
+    this.$main.find("#lms-floating-panel").remove();
+    this.$main.find("#lms-fp-overlay").remove();
+    this.$main.off("click", "#lms-fp-close, #lms-fp-overlay");
+}
+
+    _render_description_tab() {
+        const lesson = this.data.current_lesson;
+        const course = this.data.course;
+        const dur = lesson.video_duration_sec || 0;
+        const min = Math.floor(dur / 60);
+        const sec = dur % 60;
+        const durLabel = min > 0 ? `${min} daqiqa ${sec > 0 ? sec + " soniya" : ""}` : `${sec} soniya`;
+
+        return `
+            <div class="lms-desc-tab" style="font-size:15px; line-height:1.7;">
+                <h2 class="lms-desc-title" style="font-size:20px; margin-bottom:12px;">${_esc(lesson.lesson_title)}</h2>
+                <div class="lms-desc-meta" style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:16px; color:#555;">
+                    <span>⏱️ Davomiyligi: ${durLabel}</span>
+                    ${course.instructor ? `<span>👤 O'qituvchi: ${_esc(course.instructor)}</span>` : ""}
+                    ${this.data.progress.is_completed ? '<span class="lms-badge lms-badge-green">✅ Tugatilgan</span>' : ""}
+                </div>
+                ${lesson.assignment_instruction
+                    ? `<div class="lms-desc-instruction" style="background:#f8f9fa; border-left:4px solid #4a90e2; padding:16px 20px; border-radius:4px; margin-top:12px;">
+                           <h4 style="margin-bottom:8px;">Yo'riqnoma</h4>
+                           ${lesson.assignment_instruction}
+                       </div>`
+                    : ""}
+            </div>
+        `;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // SECTION 5: Quiz Engine
+    // ═══════════════════════════════════════════════════════════════
+
+    _on_quiz_result(result) {
+        if (!this.data.quiz) return;
+        if (!this.data.quiz.attempts) this.data.quiz.attempts = [];
+        this.data.quiz.attempts.push({
+            percentage: result.percentage,
+            passed: result.passed,
+            attempt_number: result.attempt_number,
+        });
+        this.data.quiz.attempts_used = (this.data.quiz.attempts_used || 0) + 1;
+        this.data.quiz.is_passed = result.passed || this.data.quiz.is_passed;
+        this.data.quiz.best_percentage = Math.max(
+            result.percentage,
+            this.data.quiz.best_percentage || 0
+        );
+        const maxAtt = this.data.quiz.max_attempts || 0;
+        this.data.quiz.can_retry =
+            maxAtt === 0 || this.data.quiz.attempts_used < maxAtt;
+        this._refresh_nav();
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // SECTION 6: Open Questions
+    // ═══════════════════════════════════════════════════════════════
+
+    _render_oq_tab() {
+        const oq = this.data.open_questions;
+        if (!oq) return '<div class="lms-empty">Savollar topilmadi.</div>';
+
+        const questions = oq.questions || [];
+        const score_pct =
+            oq.total_marks > 0
+                ? Math.round((oq.earned_marks / oq.total_marks) * 100)
+                : null;
+
+        let html = `
+            <div class="lms-oq-tab">
+                <div class="lms-oq-header">
+                    <h3>${_esc(oq.title)}</h3>
+                    <div class="lms-oq-meta">
+                        O'tish balli: ${oq.passing_score || 0}%
+                        ${score_pct !== null ? `&nbsp;|&nbsp; Natija: <strong>${score_pct}%</strong>` : ""}
+                    </div>
+                </div>
+        `;
+
+        for (let i = 0; i < questions.length; i++) {
+            const q = questions[i];
+            const ans = q.answer;
+            const isGraded = ans && ans.status === "Graded";
+            const isPending = ans && ans.status === "Pending";
+            // Graded lekin ball to'liq emas = admin qayta ishlashni talab qilgan
+			const isRejectedGrade = isGraded && (ans.score || 0) < (q.marks || 1);
+			const readonly = (isGraded && !isRejectedGrade) || (isPending && !q.answer.is_auto_graded);
+            html += `
+                <div class="lms-oq-card" data-qidx="${i}" style="margin-bottom:20px; padding:16px; border:1px solid #e0e0e0; border-radius:8px;">
+                    <div class="lms-oq-card-header" style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+                        <span class="lms-oq-num">${i + 1}.</span>
+                        <span class="lms-oq-type-tag">${q.question_type === "Auto" ? "🤖 Avtomatik" : "✋ Qo'lda"}</span>
+                        ${isGraded && !isRejectedGrade
+							? `<span class="lms-badge lms-badge-green">✅ Baholandi: ${ans.score || 0}/${q.marks || 0}</span>`
+							: isRejectedGrade
+							? `<span class="lms-badge lms-badge-red">❌ Qayta ishlang: ${ans.score || 0}/${q.marks || 0}</span>`
+							: isPending
+							? '<span class="lms-badge lms-badge-yellow">⏳ Kutilmoqda</span>'
+							: ""}
+                    </div>
+                    <p class="lms-oq-text" style="font-size:15px; margin-bottom:10px;">${_esc(q.question_text)}</p>
+                    <textarea
+                        class="lms-oq-textarea"
+                        data-item="${q.item_name}"
+                        maxlength="5000"
+                        placeholder="Javobingizni yozing (max 5000 belgi)..."
+                        style="width:100%; min-height:120px; padding:10px; border:1px solid #ccc; border-radius:6px; font-size:14px; resize:vertical; box-sizing:border-box;"
+                        ${readonly ? "readonly" : ""}
+                    >${_esc(ans ? ans.answer_text || "" : "")}</textarea>
+                    ${isGraded && ans.admin_feedback
+                        ? `<div class="lms-oq-feedback" style="margin-top:10px; background:#e8f5e9; padding:10px; border-radius:6px;"><strong>Admin fikri:</strong> ${_esc(ans.admin_feedback)}</div>`
+                        : ""}
+                </div>
+            `;
+        }
+
+        html += `
+            <div class="lms-oq-actions" style="display:flex; gap:12px; margin-top:16px;">
+                <button class="lms-btn lms-btn-secondary" id="lms-oq-save">💾 Saqlash (qoralama)</button>
+                <button class="lms-btn lms-btn-primary" id="lms-oq-submit">📤 Topshirish</button>
+            </div>
+            </div>
+        `;
+        return html;
+    }
+
+    _bind_oq_events() {
+        const $tc = this.$main.find("#lms-tab-content");
+
+        $tc.off("click", "#lms-oq-save").on("click", "#lms-oq-save", () => {
+            this._save_oq_answers(false);
+        });
+        $tc.off("click", "#lms-oq-submit").on("click", "#lms-oq-submit", () => {
+            frappe.confirm(
+                "Javoblarni topshirishni tasdiqlaysizmi? Topshirilgandan keyin o'zgartirib bo'lmaydi.",
+                () => this._save_oq_answers(true)
+            );
+        });
+    }
+    _bind_oq_events_in($container) {
+    $container.off("click", "#lms-oq-save").on("click", "#lms-oq-save", () => {
+        this._save_oq_answers(false);
+    });
+    $container.off("click", "#lms-oq-submit").on("click", "#lms-oq-submit", () => {
+        frappe.confirm(
+            "Javoblarni topshirishni tasdiqlaysizmi? Topshirilgandan keyin o'zgartirib bo'lmaydi.",
+            () => this._save_oq_answers(true)
+        );
+    });
+}
+
+	_bind_assignment_events_in($container) {
+		const type = this.data.assignment && this.data.assignment.type;
+
+		$container.off("click", "#lms-assign-submit-file")
+			.on("click", "#lms-assign-submit-file", () => {
+				const $fileInput = $container.find("#lms-assign-file");
+				if (!$fileInput.length || !$fileInput[0].files[0]) {
+					frappe.msgprint("Fayl tanlang.");
 					return;
 				}
-				this.data = r.message;
-				this._render();
-				this._attachEvents();
-				// ── Sessiyani boshlaydi: render tugagandan keyin ────────
-				this._startTracking();
-			},
-			error: () => { $b.innerHTML = this._err('Server xatosi'); }
-		});
-	}
-
-	/* ── Time tracking lifecycle ─────────────────────────────────── */
-
-	_startTracking() {
-		// SessionManager
-		this.sessionManager = new SessionManager(this.lesson_name);
-		this.sessionManager.start('Video');
-
-		// InactivityEngine
-		this.inactivityEngine = new InactivityEngine({
-			onWarn: () => this._showInactivityWarning(),
-			onCountdown: (sec) => this._updateInactivityCountdown(sec),
-			onStay: () => this._hideInactivityWarning(),
-			onLogout: () => this._doLogout(),
-		});
-		this.inactivityEngine.start();
-
-		// "Davom etish" tugmasi
-		const stayBtn = document.getElementById('lp-inact-stay');
-		if (stayBtn) {
-			stayBtn.addEventListener('click', () => {
-				this.inactivityEngine.stayActive();
-			});
-		}
-
-		// Page unload / navigation — sessiyani yopadi
-		this._beforeUnloadHandler = () => {
-			this.sessionManager.end('page_unload');
-		};
-		window.addEventListener('beforeunload', this._beforeUnloadHandler);
-	}
-
-	_stopTracking(reason) {
-		if (this.sessionManager) this.sessionManager.end(reason || 'normal');
-		if (this.inactivityEngine) this.inactivityEngine.stop();
-		window.removeEventListener('beforeunload', this._beforeUnloadHandler);
-	}
-
-	/** Logout: video to'xtating, sessiyani yoping, Frappe'dan chiqing */
-	_doLogout() {
-		this._hideInactivityWarning();
-		try { if (this.ytPlayer) this.ytPlayer.pauseVideo(); } catch (e) { }
-		if (this.video_element) try { this.video_element.pause(); } catch (e) { }
-		this._stopTracking('inactivity');
-
-		// Frappe v15 — to'g'ri logout: frappe.app.logout() server sessiyani yopadi
-		const _redirect = () => { window.location.href = '/login?reason=inactivity'; };
-		try {
-			if (frappe.app && typeof frappe.app.logout === 'function') {
-				frappe.app.logout();
-				setTimeout(_redirect, 800);
-			} else {
-				frappe.call({
-					method: 'frappe.client.logout',
-					callback: _redirect,
-					error:    _redirect,
-				});
-			}
-		} catch (e) {
-			_redirect();
-		}
-	}
-
-	_showInactivityWarning() {
-		try { if (this.ytPlayer) this.ytPlayer.pauseVideo(); } catch (e) { }
-		const m = document.getElementById('lp-inact-modal');
-		if (m) m.classList.add('lp-inact-visible');
-	}
-
-	_hideInactivityWarning() {
-		const m = document.getElementById('lp-inact-modal');
-		if (m) m.classList.remove('lp-inact-visible');
-	}
-
-	_updateInactivityCountdown(sec) {
-		const el = document.getElementById('lp-inact-counter');
-		if (el) el.textContent = sec;
-	}
-
-	/* ── Render ──────────────────────────────────────────────────── */
-	_render() {
-		const L = this.data.lesson;
-		const P = this.data.progress;
-		const isLocked = !!this.data.is_locked;
-		const pct = Math.round(P.completion_percent || 0);
-		const wm = Math.floor((P.watch_time_sec || 0) / 60);
-		const ws = String((P.watch_time_sec || 0) % 60).padStart(2, '0');
-
-		this._ytLastKnownTime = P.last_position_sec || 0;
-		this._ytWatchedSec = P.watch_time_sec || 0;
-		this.ytVideoId = L.youtube_id || _extractYouTubeId(L.video_url);
-
-		this.$b.innerHTML =
-			'<div class="lp-page" id="lp-page">' +
-
-			'<div class="lp-topbar">' +
-			'<div class="lp-topbar-left">' +
-			'<button class="lp-icon-btn" id="lp-back">&larr; Dashboard</button>' +
-			'<span class="lp-lesson-title">' + this._esc(L.title) + '</span>' +
-			'</div>' +
-			'<div class="lp-topbar-right">' +
-			'<span class="lp-pct-badge" id="lp-pct">' + pct + '%</span>' +
-			'<button class="lp-icon-btn" id="lp-toggle" title="Darslar ro\'yxati">&#9776; Bo\'limlar</button>' +
-			'</div>' +
-			'</div>' +
-
-			'<div class="lp-main">' +
-			'<div class="lp-left">' +
-			this._video(L, pct, isLocked) +
-			'<div class="lp-info-bar">' +
-			'<div class="lp-stat">' +
-			'<span class="lp-stat-label">Ko\'rildi</span>' +
-			'<span class="lp-stat-value">' + wm + 'm ' + ws + 's</span>' +
-			'</div>' +
-			'<div class="lp-stat">' +
-			'<span class="lp-stat-label">Tamomlangan</span>' +
-			'<span class="lp-stat-value" id="lp-stat-pct">' + pct + '%</span>' +
-			'</div>' +
-			(P.is_completed ? '<span class="lp-done-badge">&#10003; Tugallangan</span>' : '') +
-			this._actions(L) +
-			'</div>' +
-			'</div>' +
-			this._sidebar(this.data.hierarchy, L.name) +
-			'</div>' +
-			'</div>';
-
-		this.video_element = document.getElementById('lp-video');
-		if (this.video_element && P.last_position_sec > 0) {
-			this.video_element.addEventListener('loadedmetadata', () => {
-				this.video_element.currentTime = P.last_position_sec;
-			}, { once: true });
-		}
-	}
-
-	/* ── Video ───────────────────────────────────────────────────── */
-	_video(L, pct, isLocked) {
-		const lockOverlay = isLocked
-			? '<div class="lp-lock-overlay"><div class="lp-lock-msg">&#128274; Bu dars qulflangan.<br>Avvalgi darsni tugatish kerak.</div></div>'
-			: '';
-		const skipWarn =
-			'<div class="lp-lock-overlay" id="lp-skip-warn" style="display:none;">' +
-			'<div class="lp-lock-msg" style="background:rgba(245,158,11,0.92)">' +
-			'&#9888; Oldinga o\'tkazib bo\'lmaydi<br>' +
-			'<small>' + pct + '% ko\'rildi, 90% kerak</small></div></div>';
-
-		const ytId = this.ytVideoId;
-		if (ytId) {
-			return '<div class="lp-video-container">' + lockOverlay + skipWarn +
-				'<div id="lp-yt-mount"></div>' +
-				'</div>' +
-				'<div class="lp-progress-line"><div class="lp-progress-fill" id="lp-pfill" style="width:' + pct + '%"></div></div>';
-		}
-		if (L.video_url) {
-			return '<div class="lp-video-container">' + lockOverlay + skipWarn +
-				'<video id="lp-video" controls preload="metadata" playsinline' +
-				(isLocked ? ' style="pointer-events:none"' : '') + '>' +
-				'<source src="' + this._esc(L.video_url) + '">' +
-				'Brauzeringiz video elementni qo\'llab-quvvatlamaydi.' +
-				'</video>' +
-				'</div>' +
-				'<div class="lp-progress-line"><div class="lp-progress-fill" id="lp-pfill" style="width:' + pct + '%"></div></div>';
-		}
-		return '<div class="lp-no-video">' +
-			'<div class="lp-no-video-inner">' +
-			'<span class="lp-no-video-icon">&#127909;</span>' +
-			'<p class="lp-no-video-title">Video yuklanmagan</p>' +
-			'<p class="lp-no-video-sub">Ushbu darsga video fayl yoki YouTube havolasi biriktirilmagan.</p>' +
-			'</div></div>';
-	}
-
-	/* ── Sidebar ─────────────────────────────────────────────────── */
-	_sidebar(hierarchy, cur) {
-		let h = '';
-		(hierarchy || []).forEach(function (sec) {
-			const hc = (sec.lessons || []).some(function (l) { return l.lesson_id === cur; });
-			const ad = sec.lessons.length > 0 && sec.lessons.every(function (l) { return l.is_completed; });
-			const scls = 'lp-s-section' + (hc ? '' : ' lp-s-section--closed');
-
-			h += '<div class="' + scls + '">' +
-				'<div class="lp-s-sec-hdr" onclick="this.closest(\'.lp-s-section\').classList.toggle(\'lp-s-section--closed\')">' +
-				'<span>' + (ad ? '&#9989;' : '&#128193;') + '</span>' +
-				'<span style="flex:1;overflow:hidden;text-overflow:ellipsis">' + this._esc(sec.section_title) + '</span>' +
-				'<span style="font-size:10px;opacity:.6;margin-left:4px">' +
-				sec.lessons.filter(function (l) { return l.is_completed; }).length + '/' + sec.lessons.length +
-				'</span>' +
-				'</div>' +
-				'<div class="lp-s-lessons">';
-
-			sec.lessons.forEach(function (l) {
-				const ic = l.lesson_id === cur;
-				const icon = l.is_locked ? '&#128274;' : (l.is_completed ? '&#10003;' : '&#9675;');
-				let cls = 'lp-s-lesson';
-				if (ic) cls += ' lp-s-lesson--active';
-				if (l.is_locked) cls += ' lp-s-lesson--locked';
-				const nav = l.is_locked
-					? 'onclick="frappe.msgprint(\'Avval oldingi darsni tugating\')"; title="Qulflangan"'
-					: 'onclick="window.lms_player && window.lms_player._navigateLesson(\'' + encodeURIComponent(l.lesson_id) + '\')"';
-				const pctBadge = (!l.is_completed && l.completion_percent > 0)
-					? '<span style="font-size:10px;opacity:.7;margin-left:auto">' + Math.round(l.completion_percent) + '%</span>' : '';
-
-				h += '<div class="' + cls + '" ' + nav + '>' +
-					'<span class="lp-s-icon">' + icon + '</span>' +
-					'<span class="lp-s-text">' + this._esc(l.lesson_title) + '</span>' +
-					pctBadge +
-					'</div>';
-			}, this);
-
-			h += '</div></div>';
-		}, this);
-
-		return '<div class="lp-sidebar" id="lp-sidebar">' +
-			'<div class="lp-s-hdr">' +
-			'<span>Kurs bo\'limlari</span>' +
-			'<button class="lp-icon-btn" id="lp-close-sb" title="Yopish">&#10005;</button>' +
-			'</div>' +
-			'<div class="lp-s-body">' +
-			(h || '<p style="padding:16px;opacity:.5">Bo\'limlar topilmadi</p>') +
-			'</div>' +
-			'</div>';
-	}
-
-	/** Sidebar'dan dars navigatsiyasi — sessiyani to'g'ri yopadi */
-	_navigateLesson(encodedId) {
-		this._stopTracking('navigation');
-		window.location.href = '/app/lms-player?lesson=' + encodedId;
-	}
-
-	/* ── Actions bar ─────────────────────────────────────────────── */
-	_actions(L) {
-		const P = this.data.progress;
-		const pct = P.completion_percent || 0;
-		const quizUnlocked = pct >= 90 || P.is_completed;
-		const oqStatus = this.data.oq_status;
-
-		let h = '<div class="lp-actions" id="lp-actions">';
-
-		if (L.has_quiz) {
-			if (quizUnlocked) {
-				h += '<button class="lp-btn lp-btn-primary" id="lp-quiz">&#129504; Test boshlash</button>';
-			} else {
-				h += '<button class="lp-btn lp-btn-primary" id="lp-quiz" disabled ' +
-					'title="Testni boshlash uchun videoni 90% ko&#39;ring (' + Math.round(pct) + '% ko\'rildi)" ' +
-					'style="opacity:.45;cursor:not-allowed">&#129504; Test boshlash (' + Math.round(pct) + '%)</button>';
-			}
-		}
-
-		if (L.has_open_questions) {
-			let oqLabel = '&#9998; Savollar';
-			let oqStyle = '';
-			if (oqStatus) {
-				if (oqStatus.graded === oqStatus.total_questions && oqStatus.total_questions > 0) {
-					oqLabel = '&#10003; Savollar yakunlandi';
-					oqStyle = 'style="background:rgba(16,185,129,0.25);border-color:rgba(16,185,129,0.5);color:#34d399"';
-				} else if (oqStatus.pending > 0) {
-					oqLabel = '&#9203; Tekshirilmoqda (' + oqStatus.pending + ')';
-					oqStyle = 'style="background:rgba(245,158,11,0.2);border-color:rgba(245,158,11,0.4);color:#fbbf24"';
-				} else if (oqStatus.answered === oqStatus.total_questions && oqStatus.total_questions > 0) {
-					oqLabel = '&#10003; Javob berildi';
-					oqStyle = 'style="background:rgba(16,185,129,0.15);color:#34d399"';
-				}
-			}
-			if (quizUnlocked) {
-				h += '<button class="lp-btn lp-btn-oq" id="lp-open-q" ' + oqStyle + '>' + oqLabel + '</button>';
-			} else {
-				h += '<button class="lp-btn lp-btn-oq" id="lp-open-q" disabled ' +
-					'title="Savollarni ochish uchun videoni 90% ko&#39;ring (' + Math.round(pct) + '% ko\'rildi)" ' +
-					'style="opacity:.45;cursor:not-allowed">&#9998; Savollar (' + Math.round(pct) + '%)</button>';
-			}
-		}
-
-		if (L.has_assignment) {
-			h += '<button class="lp-btn lp-btn-secondary" id="lp-assign">&#128203; Vazifa topshirish</button>';
-		}
-
-		h += '</div>';
-		return h;
-	}
-
-	/* ── Events ──────────────────────────────────────────────────── */
-	_attachEvents() {
-		// Back button — sessiyani navigation sababli yopadi
-		document.getElementById('lp-back')?.addEventListener('click', () => {
-			this._stopTracking('navigation');
-			frappe.set_route('lms_dashboard');
-		});
-
-		document.getElementById('lp-toggle')?.addEventListener('click', () => {
-			document.getElementById('lp-sidebar')?.classList.toggle('lp-sidebar--hidden');
-		});
-		document.getElementById('lp-close-sb')?.addEventListener('click', () => {
-			document.getElementById('lp-sidebar')?.classList.add('lp-sidebar--hidden');
-		});
-
-		document.getElementById('lp-quiz')?.addEventListener('click', () => {
-			if (document.getElementById('lp-quiz')?.disabled) return;
-			this._openQuiz();
-		});
-		document.getElementById('lp-assign')?.addEventListener('click', () => {
-			this._openAssignment();
-		});
-		document.getElementById('lp-open-q')?.addEventListener('click', () => {
-			if (document.getElementById('lp-open-q')?.disabled) return;
-			this._openOpenQuestions();
-		});
-
-		const vid = this.video_element;
-		if (vid) {
-			vid.addEventListener('timeupdate', () => this._onTime());
-			vid.addEventListener('seeking', (e) => this._onSeek(e));
-			vid.addEventListener('ended', () => this._save());
-			setInterval(() => this._save(), this.save_interval);
-		}
-
-		if (this.ytVideoId && document.getElementById('lp-yt-mount')) {
-			window._ytApiReady.then(() => {
-				try { this._initYouTubePlayer(); } catch (e) {
-					console.error('[LMS] YT player init failed:', e);
-				}
-			});
-		}
-	}
-
-	/* ── YouTube IFrame Player ───────────────────────────────────── */
-	_initYouTubePlayer() {
-		const resumeSec = this._ytLastKnownTime || 0;
-		this.ytPlayer = new YT.Player('lp-yt-mount', {
-			videoId: this.ytVideoId,
-			playerVars: { autoplay: 0, controls: 1, rel: 0, modestbranding: 1, start: Math.floor(resumeSec) },
-			events: { onReady: (e) => this._onYTReady(e), onStateChange: (e) => this._onYTState(e) }
-		});
-	}
-
-	_onYTReady(e) {
-		try {
-			const t = e.target.getCurrentTime() || 0;
-			if (t > this._ytLastKnownTime) this._ytLastKnownTime = t;
-		} catch (ex) { }
-		this._ytReady = true;
-		this._ytPollTimer = setInterval(() => this._ytPoll(), 2000);
-		this._ytSaveTimer = setInterval(() => this._ytSave(), this.save_interval);
-	}
-
-	_onYTState(e) {
-		if (e.data === 1) {  // PLAYING
-			if (!this._ytPlayStarted) {
-				this._ytPlayStarted = true;
-				try {
-					const cur = this.ytPlayer.getCurrentTime() || 0;
-					if (cur > this._ytLastKnownTime) this._ytLastKnownTime = cur;
-				} catch (ex) { }
-			}
-		}
-		if (e.data === 0) {  // ENDED
-			clearInterval(this._ytPollTimer);
-			clearInterval(this._ytSaveTimer);
-			this._ytSave(true);
-		}
-	}
-
-	_ytPoll() {
-		try {
-			if (!this.ytPlayer || typeof this.ytPlayer.getCurrentTime !== 'function') return;
-			const state = this.ytPlayer.getPlayerState();
-			const current = this.ytPlayer.getCurrentTime();
-			const duration = this.ytPlayer.getDuration();
-			if (!duration) return;
-
-			if (state === 1 && this._ytPlayStarted) {
-				// ── Inactivity: video ijrosi = foydalanuvchi faol ────────
-				if (this.inactivityEngine) this.inactivityEngine.pulse();
-
-				// ── Session heartbeat sync (har 2s pollda SessionManager'ga ishonmaymiz,
-				//    uning o'z 30s timer bor) ──────────────────────────────
-
-				const TOLERANCE_SEC = 5;
-				const pctNow = (this._ytLastKnownTime / duration) * 100;
-				const skipEnforced = pctNow < 85;
-
-				if (skipEnforced && current > this._ytLastKnownTime + TOLERANCE_SEC) {
-					this.ytPlayer.seekTo(this._ytLastKnownTime, true);
-					const ov = document.getElementById('lp-skip-warn');
-					if (ov) {
-						ov.style.display = 'flex';
-						clearTimeout(this._ovt);
-						this._ovt = setTimeout(() => { ov.style.display = 'none'; }, 3000);
-					}
-					return;
-				}
-				if (current > this._ytLastKnownTime) this._ytLastKnownTime = current;
-				this._ytWatchedSec += 2;
-			}
-
-			const pct = (this._ytLastKnownTime / duration) * 100;
-			const f = document.getElementById('lp-pfill');
-			if (f) f.style.width = pct + '%';
-			const b = document.getElementById('lp-pct');
-			if (b) b.textContent = Math.round(pct) + '%';
-			const s = document.getElementById('lp-stat-pct');
-			if (s) s.textContent = Math.round(pct) + '%';
-
-			if (this.data && this.data.progress) {
-				this.data.progress.last_position_sec = Math.round(this._ytLastKnownTime);
-				this.data.progress.completion_percent = pct;
-			}
-
-			if (pct >= 90 && !this._ytCompleted) {
-				this._ytCompleted = true;
-				this._ytSave(true);
-				this._unlockActionButtons();
-			}
-		} catch (e) {
-			console.warn('[LMS] ytPoll error:', e);
-		}
-	}
-
-	_ytSave(force) {
-		try {
-			if (!this.ytPlayer || typeof this.ytPlayer.getDuration !== 'function') return;
-			const duration = this.ytPlayer.getDuration();
-			if (!duration && !force) return;
-			const pct = Math.min(100, Math.round((this._ytLastKnownTime / (duration || 1)) * 100));
-			const payload = {
-				lesson_name: this.lesson_name,
-				watch_time_sec: Math.round(this._ytWatchedSec),
-				last_position_sec: Math.round(this._ytLastKnownTime),
-				completion_percent: pct,
-			};
-			try { localStorage.setItem('lms_progress_' + this.lesson_name, JSON.stringify(payload)); } catch (e) { }
-			frappe.call({
-				method: 'pro_lms.lms_for_dbr.page.lms_player.lms_player.save_progress',
-				args: payload,
-				callback: (r) => {
-					if (r.message && r.message.is_completed) {
-						if (this.data) { this.data.progress.is_completed = true; this.data.progress.completion_percent = 100; }
-						const b = document.getElementById('lp-pct');
-						if (b) b.textContent = '100%';
-						this._showNextLesson();
-						try { localStorage.removeItem('lms_progress_' + this.lesson_name); } catch (e) { }
-					}
-				},
-				error: () => {
-					clearTimeout(this._ytRetry);
-					this._ytRetry = setTimeout(() => this._ytSave(), 10000);
-				}
-			});
-		} catch (e) {
-			console.warn('[LMS] ytSave error:', e);
-		}
-	}
-
-	/* ── 90% unlock ──────────────────────────────────────────────── */
-	_unlockActionButtons() {
-		const quizBtn = document.getElementById('lp-quiz');
-		if (quizBtn && quizBtn.disabled) {
-			quizBtn.disabled = false;
-			quizBtn.style.opacity = '';
-			quizBtn.style.cursor = '';
-			quizBtn.textContent = '🧠 Test boshlash';
-		}
-		const oqBtn = document.getElementById('lp-open-q');
-		if (oqBtn && oqBtn.disabled) {
-			oqBtn.disabled = false;
-			oqBtn.style.opacity = '';
-			oqBtn.style.cursor = '';
-			const oqStatus = this.data && this.data.oq_status;
-			if (!oqStatus || !oqStatus.answered) {
-				oqBtn.textContent = '✏️ Savollar';
-			}
-		}
-	}
-
-	/* ── Quiz Modal ──────────────────────────────────────────────── */
-	_openQuiz() {
-		const quizName = this.data.lesson.quiz;
-		if (!quizName) {
-			frappe.msgprint({ title: 'Test topilmadi', message: 'Bu darsga test biriktirilmagan.', indicator: 'orange' });
-			return;
-		}
-		try { if (this.ytPlayer) this.ytPlayer.pauseVideo(); } catch (e) { }
-
-		// ── Activity: Video → Quiz ──────────────────────────────────
-		if (this.sessionManager) this.sessionManager.switchActivity('Quiz');
-
-		frappe.call({
-			method: 'pro_lms.lms_for_dbr.page.lms_player.lms_player.get_quiz',
-			args: { quiz_name: quizName, lesson_name: this.lesson_name },
-			callback: (r) => {
-				if (!r.message || r.message.error) {
-					frappe.msgprint({ title: 'Xato', message: (r.message && r.message.message) || 'Test yuklanmadi', indicator: 'red' });
-					// Qaytarish
-					if (this.sessionManager) this.sessionManager.switchActivity('Video');
-					return;
-				}
-				this._renderQuizModal(r.message);
-			}
-		});
-	}
-
-	_renderQuizModal(data) {
-		_injectQuizExtraCSS();
-
-		const questions = data.questions;
-		const quizMeta = data.quiz;
-		const totalQ = questions.length;
-
-		if (!totalQ) {
-			frappe.msgprint({ title: "Test bo'sh", message: 'Savollar topilmadi.', indicator: 'orange' });
-			if (this.sessionManager) this.sessionManager.switchActivity('Video');
-			return;
-		}
-
-		/* ── Option shuffle: har savol uchun bir marta, sessiya davomida o'zgarmaydi ──
-		   shuffleMap[q.name] = [ {text, origIdx}, ... ]
-		   Shu tufayli "answers[q.name] = origIdx" doim to'g'ri saqlanadi.            */
-		const shuffleMap = {};
-		questions.forEach(q => {
-			const indexed = (q.options || []).map((opt, i) => ({ text: opt.option_text, origIdx: i }));
-			// Fisher-Yates shuffle
-			for (let i = indexed.length - 1; i > 0; i--) {
-				const j = Math.floor(Math.random() * (i + 1));
-				[indexed[i], indexed[j]] = [indexed[j], indexed[i]];
-			}
-			shuffleMap[q.name] = indexed;
-		});
-
-		let curIdx = 0;
-		const answers = {};          // { q.name → originalOptionIndex }
-		let timerInterval = null;
-		let startTime = Date.now();
-
-		/* ── Savol xaritasi (overview) ── */
-		const buildMap = () => {
-			let h = '<div class="lms-qz-map">';
-			questions.forEach((q, i) => {
-				const answered = answers[q.name] !== undefined;
-				const active = i === curIdx;
-				h += `<button
-					class="lms-qz-map-btn${answered ? ' qz-answered' : ''}${active ? ' qz-current' : ''}"
-					data-qidx="${i}"
-					title="Savol ${i + 1}${answered ? ' ✓' : ''}"
-				>${i + 1}</button>`;
-			});
-			h += '</div>';
-			return h;
-		};
-
-		/* ── Asosiy kontent ── */
-		const buildBody = () => {
-			const q = questions[curIdx];
-			const opts = shuffleMap[q.name];           // shuffled
-			const chosen = answers[q.name];               // origIdx yoki undefined
-			const donePct = Math.round((Object.keys(answers).length / totalQ) * 100);
-			const isLast = curIdx === totalQ - 1;
-			const allDone = Object.keys(answers).length === totalQ;
-
-			let html = `
-			<div class="lms-quiz-wrap">
-				${buildMap()}
-				<div class="lms-qz-topbar">
-					<span class="lms-qz-counter">${curIdx + 1} / ${totalQ}</span>
-					<div class="lms-qz-prog">
-						<div class="lms-qz-prog-fill" style="width:${donePct}%"></div>
-					</div>
-					${quizMeta.time_limit_min
-					? '<span class="lms-qz-timer" id="lms-qz-timer">⏱ --:--</span>'
-					: ''}
-				</div>
-				<p class="lms-qz-question">${frappe.utils.escape_html(q.question)}</p>
-				<div class="lms-qz-marks">+${q.marks} ball</div>
-				<div class="lms-qz-options">`;
-
-			opts.forEach((opt) => {
-				const sel = chosen === opt.origIdx;
-				html += `<div class="lms-qz-opt${sel ? ' lms-qz-opt--selected' : ''}"
-					data-orig-idx="${opt.origIdx}">
-					<span class="lms-qz-opt-radio">${sel ? '&#9679;' : '&#9675;'}</span>
-					<span>${frappe.utils.escape_html(opt.text)}</span>
-				</div>`;
-			});
-
-			html += `</div>
-				<div class="lms-qz-nav">
-					<button class="lp-btn lp-btn-secondary" id="lms-qz-prev"
-						${curIdx === 0 ? 'disabled style="opacity:.4"' : ''}>
-						&#8592; Oldingi
-					</button>
-					<div class="lms-qz-nav-right">`;
-
-			if (!isLast) {
-				html += `<button class="lp-btn lp-btn-primary" id="lms-qz-next">
-							Keyingi &#8594;
-						</button>`;
-			}
-
-			html += `<button class="lp-btn lp-btn-primary" id="lms-qz-submit"
-						${!allDone ? 'disabled style="opacity:.45;cursor:not-allowed"' : ''}
-						title="${!allDone ? (totalQ - Object.keys(answers).length) + ' ta savol javobsiz' : 'Testni yakunlash'}">
-						&#10003; Yakunlash${allDone ? '' : ' (' + Object.keys(answers).length + '/' + totalQ + ')'}
-					</button>`;
-
-			html += `</div></div></div>`;
-			return html;
-		};
-
-		const d = new frappe.ui.Dialog({
-			title: quizMeta.quiz_title || 'Test',
-			size: 'large',
-			fields: [{ fieldtype: 'HTML', fieldname: 'quiz_html' }],
-			on_hide: () => {
-				clearInterval(timerInterval);
-				if (this.sessionManager) this.sessionManager.switchActivity('Video');
-			}
-		});
-
-		const render = () => {
-			d.fields_dict.quiz_html.$wrapper.html(buildBody());
-
-			/* Option tanlash */
-			d.fields_dict.quiz_html.$wrapper.find('.lms-qz-opt').on('click', function () {
-				const origIdx = parseInt($(this).data('orig-idx'));
-				answers[questions[curIdx].name] = origIdx;
-				render();
-			});
-
-			/* Savol xaritasi (overview) */
-			d.fields_dict.quiz_html.$wrapper.find('.lms-qz-map-btn').on('click', function () {
-				const idx = parseInt($(this).data('qidx'));
-				if (!isNaN(idx) && idx >= 0 && idx < totalQ) {
-					curIdx = idx;
-					render();
-				}
-			});
-
-			/* Oldingi / Keyingi */
-			d.$wrapper.find('#lms-qz-prev').on('click', () => {
-				if (curIdx > 0) { curIdx--; render(); }
-			});
-			d.$wrapper.find('#lms-qz-next').on('click', () => {
-				if (curIdx < totalQ - 1) { curIdx++; render(); }
-			});
-
-			/* Yakunlash */
-			d.$wrapper.find('#lms-qz-submit').on('click', () => {
-				if (Object.keys(answers).length < totalQ) return;
-				clearInterval(timerInterval);
-				this._submitQuiz(
-					d, quizMeta, questions, answers,
-					Math.round((Date.now() - startTime) / 1000)
-				);
-			});
-		};
-
-		d.show();
-		render();
-
-		/* ── Timer ── */
-		if (quizMeta.time_limit_min) {
-			let remaining = quizMeta.time_limit_min * 60;
-			const tick = () => {
-				remaining--;
-				const m = String(Math.floor(remaining / 60)).padStart(2, '0');
-				const s = String(remaining % 60).padStart(2, '0');
-				const el = document.getElementById('lms-qz-timer');
-				if (el) {
-					el.textContent = `⏱ ${m}:${s}`;
-					el.style.color = remaining <= 60 ? '#ef4444' : '#d97706';
-				}
-				if (remaining <= 0) {
-					clearInterval(timerInterval);
-					this._submitQuiz(d, quizMeta, questions, answers, quizMeta.time_limit_min * 60);
-				}
-			};
-			timerInterval = setInterval(tick, 1000);
-		}
-	}
-
-
-	_submitQuiz(dialog, quizMeta, questions, answers, timeTaken) {
-		/* answers = { q.name → originalOptionIndex }
-		   Bu serverga yuboriladi — server options ni idx asosida baholaydi.
-		   Shuffle bo'lganida ham origIdx to'g'ri keladi.                    */
-		const answersArr = questions.map(q => ({
-			question: q.name,
-			selected_option_idx: answers[q.name] !== undefined ? answers[q.name] : -1
-		}));
-
-		frappe.call({
-			method: 'pro_lms.lms_for_dbr.page.lms_player.lms_player.submit_quiz',
-			args: {
-				quiz_name: quizMeta.name,
-				lesson_name: this.lesson_name,
-				answers: JSON.stringify(answersArr),
-				time_taken_sec: timeTaken,
-			},
-			callback: (r) => {
-				if (!r.message || r.message.error) {
-					frappe.msgprint({
-						title: 'Xato',
-						message: (r.message && r.message.message) || 'Test saqlanmadi',
-						indicator: 'red'
-					});
-					return;
-				}
-
-				const res = r.message;
-				const passed = res.passed;
-				const icon = passed ? '&#127881;' : '&#128543;';
-				const color = passed ? '#22c55e' : '#ef4444';
-				const msg = passed
-					? `Tabriklaymiz! Siz <b>${res.score}/${res.total_marks}</b> ball bilan o'tdingiz!`
-					: `Afsus, ${res.score}/${res.total_marks} ball. O'tish bali: ${res.passing_score}. Qayta urinib ko'ring!`;
-
-				dialog.fields_dict.quiz_html.$wrapper.html(`
-					<div style="text-align:center;padding:32px 16px">
-						<div style="font-size:56px">${icon}</div>
-						<h2 style="color:${color};margin:16px 0 8px">
-							${passed ? "O'tdingiz!" : "Muvaffaqiyatsiz"}
-						</h2>
-						<p style="font-size:15px">${msg}</p>
-						<div style="display:flex;justify-content:center;gap:12px;margin-top:24px">
-							${!passed
-						? '<button class="lp-btn lp-btn-primary" id="lms-qz-retry">&#8635; Qayta urinish</button>'
-						: ''}
-							<button class="lp-btn lp-btn-secondary" id="lms-qz-close">&#10005; Yopish</button>
-						</div>
-						<div style="margin-top:20px;text-align:left">
-							${res.answer_review.map((a, i) => `
-								<div style="
-									padding:10px 12px;margin:6px 0;border-radius:8px;
-									background:${a.correct ? 'rgba(34,197,94,.08)' : 'rgba(239,68,68,.08)'};
-									border:1px solid ${a.correct ? 'rgba(34,197,94,.2)' : 'rgba(239,68,68,.2)'}
-								">
-									<span style="font-weight:700;color:${a.correct ? '#22c55e' : '#ef4444'}">
-										${a.correct ? '✓' : '✗'}
-									</span>
-									<b> ${i + 1}.</b> ${frappe.utils.escape_html(a.question)}
-									${!a.correct
-								? `<br><small style="color:#ef4444;margin-top:4px;display:block">
-											To'g'ri javob: <b>${frappe.utils.escape_html(a.correct_answer)}</b>
-										</small>`
-								: ''}
-								</div>`
-						).join('')}
-						</div>
-					</div>`);
-
-				dialog.$wrapper.find('#lms-qz-close').on('click', () => dialog.hide());
-				dialog.$wrapper.find('#lms-qz-retry').on('click', () => {
-					dialog.hide();
-					this._openQuiz();
-				});
-
-				if (passed) {
-					const qBtn = document.getElementById('lp-quiz');
-					if (qBtn) {
-						qBtn.textContent = '✓ Test o\'tildi';
-						qBtn.style.background = '#22c55e';
-					}
-				}
-			},
-			error: () => frappe.msgprint({
-				title: 'Server xatosi',
-				message: 'Test natijasi saqlanmadi.',
-				indicator: 'red'
-			})
-		});
-	}
-
-
-	/* ── Assignment Modal ────────────────────────────────────────── */
-	_openAssignment() {
-		try { if (this.ytPlayer) this.ytPlayer.pauseVideo(); } catch (e) { }
-		// Assignment passive — activity type o'zgarmaydi
-
-		const d = new frappe.ui.Dialog({
-			title: '📋 Vazifa topshirish',
-			size: 'small',
-			fields: [
-				{
-					fieldtype: 'HTML',
-					fieldname: 'info_html',
-					options: `<p style="color:var(--text-muted);font-size:13px;margin-bottom:12px">
-						Faylni yuklang. Qabul qilinadigan formatlar: PDF, DOCX, XLSX, ZIP, rasmlar.
-					</p>`
-				},
-				{ fieldtype: 'Attach', fieldname: 'attached_file', label: 'Fayl yuklash', reqd: 1 }
-			],
-			primary_action_label: '📤 Topshirish',
-			primary_action: (values) => {
-				if (!values.attached_file) {
-					frappe.msgprint({ title: 'Fayl tanlanmagan', message: 'Iltimos, fayl yuklang.', indicator: 'orange' });
-					return;
-				}
-				d.disable_primary_action();
-				frappe.call({
-					method: 'pro_lms.lms_for_dbr.page.lms_player.lms_player.upload_assignment',
-					args: { lesson_name: this.lesson_name, file_url: values.attached_file },
-					callback: (r) => {
-						d.enable_primary_action();
-						if (!r.message || r.message.error) {
-							frappe.msgprint({ title: 'Xato', message: (r.message && r.message.message) || 'Vazifa saqlanmadi', indicator: 'red' });
-							return;
-						}
-						d.hide();
-						frappe.show_alert({ message: r.message.updated ? '✅ Vazifa yangilandi!' : '✅ Vazifa muvaffaqiyatli topshirildi!', indicator: 'green' }, 5);
-						const btn = document.getElementById('lp-assign');
-						if (btn) { btn.textContent = '✓ Vazifa topshirildi'; btn.style.opacity = '0.7'; }
+				const file = $fileInput[0].files[0];
+				const formData = new FormData();
+				formData.append("file", file, file.name);
+				formData.append("is_private", "1");
+				formData.append("csrf_token", frappe.csrf_token);
+
+				$container.find("#lms-assign-submit-file")
+					.prop("disabled", true).text("Yuklanmoqda...");
+
+				fetch("/api/method/upload_file", {
+					method: "POST",
+					headers: {
+						"X-Frappe-CSRF-Token": frappe.csrf_token,
 					},
-					error: () => {
-						d.enable_primary_action();
-						frappe.msgprint({ title: 'Server xatosi', message: 'Qayta urinib ko\'ring.', indicator: 'red' });
+					body: formData,
+				})
+				.then(r => {
+					if (!r.ok) throw new Error("HTTP " + r.status);
+					return r.json();
+				})
+				.then(res => {
+					const fileUrl = res.message && res.message.file_url;
+					if (!fileUrl) {
+						frappe.msgprint("Fayl yuklanmadi: server javob bermadi.");
+						return;
 					}
+					const subType = type === "Excel Upload" ? "Excel" : "File";
+					this._do_assignment_submit(subType, fileUrl, null);
+				})
+				.catch(err => {
+					frappe.msgprint("Fayl yuklashda xato: " + (err.message || ""));
+				})
+				.finally(() => {
+					$container.find("#lms-assign-submit-file")
+						.prop("disabled", false).text("📤 Yuklash");
 				});
-			}
-		});
-		d.show();
-	}
-
-	/* ── Open Questions Modal ────────────────────────────────────── */
-	_openOpenQuestions() {
-		try { if (this.ytPlayer) this.ytPlayer.pauseVideo(); } catch (e) { }
-
-		// ── Activity: Video → Open Question ────────────────────────
-		if (this.sessionManager) this.sessionManager.switchActivity('Open Question');
-
-		const d = new frappe.ui.Dialog({
-			title: '✏️ Ochiq Savollar',
-			size: 'large',
-			fields: [{ fieldtype: 'HTML', fieldname: 'oq_html' }],
-			on_hide: () => {
-				// ── Activity: Open Question → Video ─────────────────
-				if (this.sessionManager) this.sessionManager.switchActivity('Video');
-			}
-		});
-		d.show();
-		d.fields_dict.oq_html.$wrapper.html(
-			'<div style="text-align:center;padding:40px">' +
-			'<div class="lp-oq-spinner"></div>' +
-			'<p style="margin-top:14px;color:#888;font-size:13px">Yuklanmoqda...</p></div>'
-		);
-
-		frappe.call({
-			method: 'pro_lms.lms_for_dbr.page.lms_player.lms_player.get_open_questions',
-			args: { lesson_name: this.lesson_name },
-			callback: (r) => {
-				if (!r.message || r.message.error) {
-					d.fields_dict.oq_html.$wrapper.html(
-						'<div class="lp-oq-err">⚠️ ' +
-						this._esc((r.message && r.message.message) || 'Savollar yuklanmadi') +
-						'</div>'
-					);
-					return;
-				}
-				this._renderOQModal(d, r.message);
-			},
-			error: () => {
-				d.fields_dict.oq_html.$wrapper.html('<div class="lp-oq-err">⚠️ Server xatosi</div>');
-			}
-		});
-	}
-
-	_renderOQModal(dialog, data) {
-		const questions = data.questions || [];
-		if (!questions.length) {
-			dialog.fields_dict.oq_html.$wrapper.html('<div class="lp-oq-err">📭 Savollar topilmadi</div>');
-			return;
-		}
-
-		let html = '<div class="lp-oq-wrap">';
-		html += `<div class="lp-oq-header">
-			<div class="lp-oq-title">${this._esc(data.title)}</div>
-			<div class="lp-oq-meta">
-				<span class="lp-oq-chip">📊 Jami: ${data.total_marks} ball</span>
-				${data.is_submitted
-				? `<span class="lp-oq-chip lp-oq-chip-green">✓ Topshirildi (${data.answered_count}/${data.total_count})</span>`
-				: `<span class="lp-oq-chip lp-oq-chip-orange">⏳ ${data.answered_count}/${data.total_count} javob berilgan</span>`
-			}
-				${data.all_graded && data.earned_marks > 0
-				? `<span class="lp-oq-chip lp-oq-chip-blue">🏆 ${data.earned_marks}/${data.total_marks} ball</span>`
-				: ''
-			}
-			</div>
-		</div>`;
-
-		questions.forEach((q, idx) => {
-			const isGraded = q.status === 'Graded';
-			const isPending = q.status === 'Pending';
-			const isAuto = q.question_type === 'Auto';
-			const isReadonly = isGraded || isPending;
-
-			let badge = '';
-			if (isGraded) {
-				const c = q.score > 0 ? '#22c55e' : '#ef4444';
-				badge = `<span class="lp-oq-badge" style="background:${c}18;color:${c};border-color:${c}40">${q.score > 0 ? '✓' : '✗'} ${q.score}/${q.marks} ball</span>`;
-			} else if (isPending) {
-				badge = `<span class="lp-oq-badge lp-oq-badge-pending">⏳ Tekshirilmoqda</span>`;
-			} else if (isAuto) {
-				badge = `<span class="lp-oq-badge lp-oq-badge-auto">🤖 Avtomatik</span>`;
-			} else {
-				badge = `<span class="lp-oq-badge lp-oq-badge-manual">👤 Admin tekshiradi</span>`;
-			}
-
-			html += `<div class="lp-oq-q ${isGraded ? 'lp-oq-q-graded' : ''} ${isPending ? 'lp-oq-q-pending' : ''}">
-				<div class="lp-oq-q-head">
-					<span class="lp-oq-q-num">${idx + 1}</span>
-					<span class="lp-oq-q-text">${this._esc(q.question_text)}</span>
-					<span class="lp-oq-q-marks">+${q.marks} ball</span>
-					${badge}
-				</div>
-				<textarea
-					class="lp-oq-ta"
-					id="lp-oq-${this._esc(q.name)}"
-					data-qitem="${this._esc(q.name)}"
-					placeholder="Javobingizni yozing..."
-					rows="3"
-					${isReadonly ? 'readonly' : ''}
-				>${this._esc(q.answer_text || '')}</textarea>`;
-
-			if (isGraded && isAuto && q.correct_answer) {
-				html += `<div class="lp-oq-correct ${q.score > 0 ? 'lp-oq-correct-ok' : 'lp-oq-correct-no'}">
-					${q.score > 0 ? '✅' : '❌'} To'g'ri javob: <strong>${this._esc(q.correct_answer)}</strong>
-				</div>`;
-			}
-			if (q.admin_feedback) {
-				html += `<div class="lp-oq-feedback">💬 Admin izohi: <em>${this._esc(q.admin_feedback)}</em></div>`;
-			}
-			html += '</div>';
-		});
-
-		const hasUnsubmitted = questions.some(q => !q.status);
-		const hasPending = questions.some(q => q.status === 'Pending');
-
-		if (hasUnsubmitted) {
-			html += `<div class="lp-oq-footer">
-				<button class="lp-btn lp-btn-primary" id="lp-oq-submit">✓ Javoblarni yuborish</button>
-				${hasPending ? '<span class="lp-oq-hint">⚠️ Baʼzi javoblar tekshirilishini kutmoqda</span>' : ''}
-			</div>`;
-		} else if (hasPending) {
-			html += `<div class="lp-oq-footer">
-				<div class="lp-oq-pending-info">⏳ Barcha javoblar yuborildi. Admin tekshirmoqda...</div>
-			</div>`;
-		}
-
-		html += '</div>';
-		dialog.fields_dict.oq_html.$wrapper.html(html);
-
-		dialog.$wrapper.find('#lp-oq-submit').on('click', () => {
-			this._submitOQAnswers(dialog, questions, data);
-		});
-	}
-
-	_submitOQAnswers(dialog, questions, data) {
-		const toSubmit = [];
-		let hasEmpty = false;
-
-		questions.forEach(q => {
-			if (q.status === 'Graded' || q.status === 'Pending') return;
-			const ta = document.getElementById('lp-oq-' + q.name);
-			const text = ta ? ta.value.trim() : '';
-			if (!text) {
-				hasEmpty = true;
-				if (ta) ta.classList.add('lp-oq-ta-err');
-				return;
-			}
-			if (ta) ta.classList.remove('lp-oq-ta-err');
-			toSubmit.push({ question_item: q.name, answer_text: text });
-		});
-
-		if (hasEmpty) {
-			frappe.show_alert({ message: '⚠️ Barcha savollarga javob yozing', indicator: 'orange' }, 3);
-			return;
-		}
-		if (!toSubmit.length) {
-			frappe.show_alert({ message: 'Yangi javob yo\'q', indicator: 'orange' }, 3);
-			return;
-		}
-
-		const submitBtn = dialog.$wrapper.find('#lp-oq-submit');
-		submitBtn.prop('disabled', true).html('<span class="lp-oq-spinner-sm"></span> Yuklanmoqda...');
-
-		frappe.call({
-			method: 'pro_lms.lms_for_dbr.page.lms_player.lms_player.submit_open_answers',
-			args: { lesson_name: this.lesson_name, answers: JSON.stringify(toSubmit) },
-			callback: (r) => {
-				submitBtn.prop('disabled', false).text('✓ Javoblarni yuborish');
-
-				if (!r.message || r.message.error) {
-					frappe.msgprint({ title: 'Xato', message: (r.message && r.message.message) || 'Javoblar saqlanmadi', indicator: 'red' });
-					return;
-				}
-
-				const res = r.message;
-				let autoCorrect = 0;
-				let autoWrong = 0;
-				let manualPending = 0;
-
-				(res.results || []).forEach(item => {
-					if (item.status === 'Graded') { item.score > 0 ? autoCorrect++ : autoWrong++; }
-					else if (item.status === 'Pending') { manualPending++; }
-				});
-
-				let rhtml = '<div class="lp-oq-result">';
-				rhtml += '<div style="font-size:52px;margin-bottom:12px">📝</div>';
-				rhtml += '<h3 class="lp-oq-result-title">Javoblar yuborildi!</h3>';
-
-				if (autoCorrect > 0 || autoWrong > 0) {
-					rhtml += `<div class="lp-oq-result-row">
-						<span class="lp-oq-chip lp-oq-chip-green">✓ To'g'ri: ${autoCorrect}</span>
-						${autoWrong > 0 ? `<span class="lp-oq-chip lp-oq-chip-red">✗ Noto'g'ri: ${autoWrong}</span>` : ''}
-						<span class="lp-oq-chip">🏆 Ball: ${res.auto_score}</span>
-					</div>`;
-				}
-				if (manualPending > 0) {
-					rhtml += `<div class="lp-oq-result-row" style="margin-top:8px">
-						<span class="lp-oq-chip lp-oq-chip-orange">⏳ Admin tekshirishini kutmoqda: ${manualPending} ta</span>
-					</div>`;
-				}
-
-				rhtml += `<div style="display:flex;gap:10px;justify-content:center;margin-top:24px">
-					<button class="lp-btn lp-btn-secondary" id="lp-oq-reopen">📊 Natijalarni ko'rish</button>
-					<button class="lp-btn lp-btn-primary" id="lp-oq-close">✓ Yopish</button>
-				</div></div>`;
-
-				dialog.fields_dict.oq_html.$wrapper.html(rhtml);
-				this._updateOQButton(manualPending, autoCorrect + autoWrong, res.auto_score);
-
-				dialog.$wrapper.find('#lp-oq-close').on('click', () => dialog.hide());
-				dialog.$wrapper.find('#lp-oq-reopen').on('click', () => {
-					dialog.hide();
-					setTimeout(() => this._openOpenQuestions(), 250);
-				});
-			},
-			error: () => {
-				submitBtn.prop('disabled', false).text('✓ Javoblarni yuborish');
-				frappe.msgprint({ title: 'Server xatosi', message: 'Qayta urinib ko\'ring.', indicator: 'red' });
-			}
-		});
-	}
-
-	_updateOQButton(pendingCount, gradedCount, autoScore) {
-		const btn = document.getElementById('lp-open-q');
-		if (!btn) return;
-		if (pendingCount > 0) {
-			btn.textContent = `⏳ Tekshirilmoqda (${pendingCount})`;
-			btn.style.background = 'rgba(245,158,11,0.2)';
-			btn.style.color = '#fbbf24';
-		} else if (gradedCount > 0) {
-			btn.textContent = '✓ Savollar yakunlandi';
-			btn.style.background = 'rgba(16,185,129,0.2)';
-			btn.style.color = '#34d399';
-		}
-	}
-
-	/* ── Native video logic ──────────────────────────────────────── */
-	_onTime() {
-		const now = Date.now();
-		if (now - (this._lastTimeUpdate || 0) < 250) return;
-		this._lastTimeUpdate = now;
-
-		const vid = this.video_element;
-		if (!vid || !vid.duration) return;
-
-		// ── Inactivity: video ijrosi = foydalanuvchi faol ──────────
-		if (!vid.paused && this.inactivityEngine) {
-			this.inactivityEngine.pulse();
-		}
-
-		const pct = (vid.currentTime / vid.duration) * 100;
-		const f = document.getElementById('lp-pfill');
-		if (f) f.style.width = pct + '%';
-		const b = document.getElementById('lp-pct');
-		if (b) b.textContent = Math.round(pct) + '%';
-		const s = document.getElementById('lp-stat-pct');
-		if (s) s.textContent = Math.round(pct) + '%';
-
-		if (this.data && this.data.progress) {
-			this.data.progress.last_position_sec = Math.round(vid.currentTime);
-			this.data.progress.completion_percent = pct;
-		}
-		if (pct >= 90 && !this._vidCompleted) {
-			this._vidCompleted = true;
-			this._unlockActionButtons();
-		}
-	}
-
-	_onSeek(e) {
-		const vid = e.target;
-		if (!vid.duration) return;
-		const saved = this.data?.progress?.completion_percent || 0;
-		const req = (vid.currentTime / vid.duration) * 100;
-		if (saved < 90 && req > saved + 2) {
-			vid.currentTime = this.data?.progress?.last_position_sec || 0;
-			const ov = document.getElementById('lp-skip-warn');
-			if (ov) {
-				ov.style.display = 'flex';
-				clearTimeout(this._ovt);
-				this._ovt = setTimeout(() => { ov.style.display = 'none'; }, 3000);
-			}
-		}
-	}
-
-	_save() {
-		const vid = this.video_element;
-		if (!vid || !vid.duration) return;
-		const t = vid.currentTime || 0;
-		const pct = Math.round((t / vid.duration) * 100);
-		const payload = {
-			lesson_name: this.lesson_name,
-			watch_time_sec: Math.round(t),
-			last_position_sec: Math.round(t),
-			completion_percent: pct
-		};
-		try { localStorage.setItem('lms_progress_' + this.lesson_name, JSON.stringify(payload)); } catch (e) { }
-		frappe.call({
-			method: 'pro_lms.lms_for_dbr.page.lms_player.lms_player.save_progress',
-			args: payload,
-			callback: (r) => {
-				if (r.message && r.message.is_completed) {
-					if (this.data) { this.data.progress.is_completed = true; this.data.progress.completion_percent = 100; }
-					const b = document.getElementById('lp-pct');
-					if (b) b.textContent = '100%';
-					this._showNextLesson();
-					try { localStorage.removeItem('lms_progress_' + this.lesson_name); } catch (e) { }
-				}
-			},
-			error: () => {
-				clearTimeout(this._retryTimer);
-				this._retryTimer = setTimeout(() => this._save(), 10000);
-			}
-		});
-	}
-
-	_showNextLesson() {
-		if (!this.data?.hierarchy) return;
-		let nextId = null, nextTitle = null, found = false;
-		outer: for (const sec of this.data.hierarchy) {
-			for (const l of sec.lessons) {
-				if (found) { nextId = l.lesson_id; nextTitle = l.lesson_title; break outer; }
-				if (l.lesson_id === this.lesson_name) found = true;
-			}
-		}
-		const acts = document.getElementById('lp-actions');
-		if (!acts) return;
-		document.getElementById('lp-next-btn')?.remove();
-		if (nextId) {
-			const btn = document.createElement('a');
-			btn.id = 'lp-next-btn';
-			btn.className = 'lp-btn lp-btn-primary';
-			btn.href = '/app/lms-player?lesson=' + encodeURIComponent(nextId);
-			btn.addEventListener('click', (e) => {
-				e.preventDefault();
-				this._stopTracking('navigation');
-				window.location.href = btn.href;
 			});
-			btn.textContent = '\u25b6 Keyingi dars: ' + (nextTitle || '');
-			acts.appendChild(btn);
-		} else {
-			const done = document.createElement('span');
-			done.id = 'lp-next-btn';
-			done.className = 'lp-done-badge';
-			done.textContent = '\u2713 Kurs yakunlandi!';
-			acts.appendChild(done);
+
+		$container.off("click", "#lms-assign-submit-url")
+			.on("click", "#lms-assign-submit-url", () => {
+				const $urlInput = $container.find("#lms-assign-url");
+				if (!$urlInput.length) return;
+				const url = ($urlInput.val() || "").trim();
+				if (!url) { frappe.msgprint("Havola kiriting."); return; }
+				this._do_assignment_submit("Google Sheets", null, url);
+			});
+	}
+    _collect_oq_answers(isFinal) {
+        const answers = [];
+        this.$main.find(".lms-oq-textarea").each((_, el) => {
+            answers.push({
+                question_item: $(el).data("item"),
+                answer_text: el.value,
+                is_final: isFinal ? 1 : 0,
+            });
+        });
+        return answers;
+    }
+
+    _save_oq_answers(isFinal) {
+        const answers = this._collect_oq_answers(isFinal);
+        if (answers.some((a) => !a.answer_text.trim())) {
+            if (isFinal) {
+                frappe.msgprint("Barcha savollarga javob bering.");
+                return;
+            }
+        }
+
+        frappe
+            .xcall("pro_lms.lms_for_dbr.api.player.save_open_answers", {
+                lesson_name: this.params.lesson,
+                answers: JSON.stringify(answers),
+            })
+            .then((res) => {
+                if (res.results && this.data.open_questions) {
+                    const oq = this.data.open_questions;
+                    for (const r of res.results) {
+                        const q = oq.questions.find((q) => q.item_name === r.question_item);
+                        if (q) {
+                            q.answer = q.answer || {};
+                            q.answer.status = r.status;
+                            q.answer.score = r.score;
+                        }
+                    }
+                    oq.all_answered = oq.questions.every((q) => q.answer && q.answer.answer_text);
+                }
+                frappe.msgprint({
+                    message: isFinal ? "Javoblar topshirildi!" : "Qoralama saqlandi.",
+                    indicator: "green",
+                });
+                if (isFinal) {
+                    const $fpBody = this.$main.find("#lms-fp-body");
+                    if ($fpBody.length) {
+                        $fpBody.html(this._render_oq_tab());
+                        this._bind_oq_events_in($fpBody);
+                        this._refresh_nav();
+                    }
+                }
+            })
+            .catch(() => frappe.msgprint("Xato yuz berdi."));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // SECTION 7: Assignment Submission
+    // ═══════════════════════════════════════════════════════════════
+
+    _render_assignment_tab() {
+        const assign = this.data.assignment;
+        if (!assign) return '<div class="lms-empty">Topshiriq topilmadi.</div>';
+
+        const sub = assign.submission;
+        const type = assign.type;
+        const isApproved = sub && sub.status === "Approved";
+        const isRejected = sub && sub.status === "Rejected";
+        const canResubmit = !sub || isRejected;
+
+        const statusBadge = sub
+            ? {
+                  Pending: '<span class="lms-badge lms-badge-yellow">⏳ Tekshirilmoqda</span>',
+                  Reviewed: '<span class="lms-badge lms-badge-blue">👁️ Ko\'rib chiqildi</span>',
+                  Approved: '<span class="lms-badge lms-badge-green">✅ Tasdiqlandi</span>',
+                  Rejected: '<span class="lms-badge lms-badge-red">❌ Rad etildi</span>',
+              }[sub.status] || ""
+            : "";
+
+        let uploadHtml = "";
+        if (canResubmit) {
+            if (type === "File Upload") {
+                uploadHtml = `
+                    <div class="lms-upload-box" id="lms-assign-upload-box" style="margin-top:16px; padding:20px; border:2px dashed #ccc; border-radius:8px; text-align:center;">
+                        <p>📁 Faylni tanlang yoki bu yerga tashlang</p>
+                        <input type="file" id="lms-assign-file" class="lms-file-input" style="margin:12px auto; display:block;">
+                        <button class="lms-btn lms-btn-primary" id="lms-assign-submit-file">📤 Yuklash</button>
+                    </div>`;
+            } else if (type === "Google Sheets Link") {
+                uploadHtml = `
+                    <div class="lms-url-input-wrap" style="margin-top:16px;">
+                        <label style="display:block; margin-bottom:8px; font-weight:600;">Google Sheets havolasi:</label>
+                        <input type="url" id="lms-assign-url"
+                               class="lms-text-input" placeholder="https://docs.google.com/spreadsheets/..."
+                               style="width:100%; padding:10px; border:1px solid #ccc; border-radius:6px; font-size:14px; box-sizing:border-box; margin-bottom:12px;">
+                        <button class="lms-btn lms-btn-primary" id="lms-assign-submit-url">📤 Topshirish</button>
+                    </div>`;
+            } else if (type === "Excel Upload") {
+                uploadHtml = `
+                    <div class="lms-upload-box" style="margin-top:16px; padding:20px; border:2px dashed #ccc; border-radius:8px; text-align:center;">
+                        <p>📊 Excel faylini yuklang (.xlsx, .xls)</p>
+                        <input type="file" id="lms-assign-file" accept=".xlsx,.xls" class="lms-file-input" style="margin:12px auto; display:block;">
+                        <button class="lms-btn lms-btn-primary" id="lms-assign-submit-file">📤 Yuklash</button>
+                    </div>`;
+            }
+        }
+
+        return `
+            <div class="lms-assign-tab" style="font-size:15px; line-height:1.7;">
+                <h3 style="margin-bottom:12px;">📎 Topshiriq — ${_esc(type)}</h3>
+                ${assign.instruction
+                    ? `<div class="lms-assign-instruction" style="background:#f8f9fa; border-left:4px solid #f0ad4e; padding:16px 20px; border-radius:4px; margin-bottom:16px;">${assign.instruction}</div>`
+                    : ""}
+                ${sub
+                    ? `<div class="lms-assign-status-block" style="background:#fff; border:1px solid #e0e0e0; border-radius:8px; padding:16px; margin-bottom:16px;">
+                        <div style="margin-bottom:8px;">Holat: ${statusBadge}</div>
+                        ${sub.admin_score !== null && sub.admin_score !== undefined
+                            ? `<div>Ball: <strong>${sub.admin_score}</strong></div>`
+                            : ""}
+                        ${sub.admin_feedback
+                            ? `<div style="margin-top:8px;">Admin fikri: <em>${_esc(sub.admin_feedback)}</em></div>`
+                            : ""}
+                        ${sub.submitted_on ? `<div style="margin-top:8px; color:#888;">Yuborildi: ${sub.submitted_on.slice(0, 16)}</div>` : ""}
+						${sub.attached_file
+							? `<div style="margin-top:8px;">
+								   📎 Yuklangan fayl:
+								   <a href="${sub.attached_file}" target="_blank" style="color:var(--primary);">
+									   ${sub.attached_file.split("/").pop()}
+								   </a>
+							   </div>`
+							: ""}
+						${sub.google_sheets_url
+							? `<div style="margin-top:8px;">
+								   🔗 Havola:
+								   <a href="${sub.google_sheets_url}" target="_blank" style="color:var(--primary);">
+									   Ko'rish
+								   </a>
+							   </div>`
+							: ""}
+                    </div>`
+                    : ""}
+                ${isApproved
+                    ? '<div class="lms-assign-approved-msg" style="color:green; font-weight:600;">✅ Bu topshiriq tasdiqlangan. Qayta yuklash imkoni yo\'q.</div>'
+                    : uploadHtml}
+            </div>
+        `;
+    }
+
+    _bind_assignment_events() {
+        const $tc = this.$main.find("#lms-tab-content");
+        const type = this.data.assignment && this.data.assignment.type;
+
+        $tc.off("click", "#lms-assign-submit-file").on("click", "#lms-assign-submit-file", async () => {
+            const $file = $tc.find("#lms-assign-file");
+            const file = $file[0].files[0];
+            if (!file) { frappe.msgprint("Fayl tanlang."); return; }
+
+			frappe.call({
+				method: "frappe.client.attach_file",
+				args: {
+					filename: file.name,
+					filedata: btoa(
+						new Uint8Array(await file.arrayBuffer())
+							.reduce((d, b) => d + String.fromCharCode(b), "")
+					),
+					doctype: "LMS Assignment Submission",
+					is_private: 1,
+				},
+				callback: (r) => {
+					if (r.message && r.message.file_url) {
+						this._do_assignment_submit(
+							type === "Excel Upload" ? "Excel" : "File",
+							r.message.file_url, null
+						);
+					} else {
+						frappe.msgprint("Fayl yuklanmadi.");
+					}
+				},
+				error: () => frappe.msgprint("Fayl yuklashda xato."),
+			});
+        });
+
+        $tc.off("click", "#lms-assign-submit-url").on("click", "#lms-assign-submit-url", () => {
+            const url = $tc.find("#lms-assign-url").val().trim();
+            if (!url) { frappe.msgprint("Havola kiriting."); return; }
+            this._do_assignment_submit("Google Sheets", null, url);
+        });
+    }
+
+    _do_assignment_submit(submission_type, file_url, google_sheets_url) {
+        frappe
+            .xcall("pro_lms.lms_for_dbr.api.player.submit_assignment", {
+                lesson_name: this.params.lesson,
+                submission_type,
+                file_url: file_url || "",
+                google_sheets_url: google_sheets_url || "",
+            })
+            .then((res) => {
+                if (!this.data.assignment) return;
+                this.data.assignment.submission = {
+                    name: res.submission_name,
+                    status: res.status,
+                    submitted_on: res.submitted_on,
+                };
+                frappe.msgprint({ message: "Topshiriq yuborildi!", indicator: "green" });
+                const $fpBody = this.$main.find("#lms-fp-body");
+				if ($fpBody.length) {
+					$fpBody.html(this._render_assignment_tab());
+					this._bind_assignment_events_in($fpBody);
+				}
+                this._refresh_nav();
+            })
+            .catch(() => frappe.msgprint("Topshirishda xato yuz berdi."));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // SECTION 8: Inactivity Detection
+    // ═══════════════════════════════════════════════════════════════
+
+    _show_inactivity_warning() {
+        const $overlay = this.$main.find("#lms-inactivity-overlay");
+        $overlay.show();
+        if (this.videoEngine) this.videoEngine.pause();
+
+        let remaining = 30;
+        const $cd = this.$main.find("#lms-inactivity-countdown");
+        $cd.text(remaining);
+
+        const countdownInterval = setInterval(() => {
+            remaining--;
+            $cd.text(remaining);
+            if (remaining <= 0) {
+                clearInterval(countdownInterval);
+                this._end_session("inactivity");
+            }
+        }, 1000);
+        this._allIntervals.push(countdownInterval);
+
+        this.$main.find("#lms-inactivity-continue").off("click").on("click", () => {
+            clearInterval(countdownInterval);
+            $overlay.hide();
+            this.inactivityManager && this.inactivityManager.reset();
+            if (this.videoEngine) this.videoEngine.play();
+        });
+
+        this.$main.find("#lms-inactivity-exit").off("click").on("click", () => {
+            clearInterval(countdownInterval);
+            this._end_session("normal");
+        });
+    }
+
+    _end_session(reason) {
+        this._save_progress();
+        if (this.timeLogger) {
+            this.timeLogger.close(reason, () => {
+                frappe.set_route("lms-dashboard");
+            });
+        } else {
+            frappe.set_route("lms-dashboard");
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // SECTION 9: Time Logging
+    // ═══════════════════════════════════════════════════════════════
+
+    _switch_time_log_activity(newActivity) {
+        if (newActivity === this.currentActivity) return;
+        if (this.timeLogger) {
+            this.timeLogger.switchActivity(newActivity, this.params);
+        }
+        this.currentActivity = newActivity;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // SECTION 10: Navigation & Progression
+    // ═══════════════════════════════════════════════════════════════
+
+    _render_nav() {
+        const nav = this.data.navigation;
+        const $navEl = this.$main.find("#lms-player-nav");
+
+        const prevBtn = nav.is_first
+            ? ""
+            : `<button class="lms-btn lms-btn-secondary lms-nav-prev" id="lms-nav-prev">◀ Oldingi dars</button>`;
+
+        const nextLabel = nav.is_last ? "Kursni tugatish 🎓" : "Keyingi dars ▶";
+        const nextCls = nav.can_go_next ? "lms-btn-primary" : "lms-btn-disabled";
+        const nextTitle = nav.can_go_next ? "" : this._block_reason_label(nav.next_blocked_reason);
+
+        const nextBtn = `
+            <button class="lms-btn ${nextCls} lms-nav-next" id="lms-nav-next"
+                    title="${nextTitle}"
+                    ${nav.can_go_next ? "" : "disabled"}>
+                ${nextLabel}
+            </button>`;
+
+        $navEl.html(`<div class="lms-nav-inner">${prevBtn}${nextBtn}</div>`);
+    }
+
+    _refresh_nav() {
+        frappe
+            .xcall("pro_lms.lms_for_dbr.api.player.check_completion_status", {
+                lesson_name: this.params.lesson,
+                enrollment_name: this.params.enrollment,
+            })
+            .then((res) => {
+                if (!this.data) return;
+                this.data.navigation.can_go_next = res.can_proceed;
+                this.data.navigation.next_blocked_reason =
+                    (res.blocked_reasons || [])[0] || null;
+                if (res.lesson_completed) {
+                    this.data.progress.is_completed = true;
+                    this._update_sidebar_lesson_status();
+                }
+                this._render_nav();
+            })
+            .catch(() => {});
+    }
+
+    _update_sidebar_lesson_status() {
+        this.$main.find(`.lms-sidebar-lesson[data-lesson="${this.params.lesson}"]`)
+            .removeClass("lms-lesson-current lms-lesson-inprogress")
+            .addClass("lms-lesson-done")
+            .find(".lms-lesson-icon").text("✅");
+    }
+
+    _block_reason_label(reason) {
+        const map = {
+            video_incomplete: "Videoni ko'ring",
+            quiz_not_passed: "Quizdan o'ting",
+            open_questions_incomplete: "Savollarni topshiring",
+            assignment_missing: "Topshiriqni bajaring",
+        };
+        return map[reason] || "Barcha vazifalarni bajaring";
+    }
+
+    _render_mobile_nav() {
+        const nav = this.data.navigation;
+        this.$main.find("#lms-mobile-nav").html(`
+            <button class="lms-mob-btn${nav.is_first ? " lms-mob-disabled" : ""}"
+                    id="lms-mob-prev" ${nav.is_first ? "disabled" : ""}>◀ Oldingi</button>
+            <button class="lms-mob-btn" id="lms-mob-lessons">📚 Darslar</button>
+            <button class="lms-mob-btn${nav.can_go_next ? "" : " lms-mob-disabled"}"
+                    id="lms-mob-next" ${nav.can_go_next ? "" : "disabled"}>Keyingi ▶</button>
+        `);
+    }
+
+    _navigate_to_lesson(lessonName) {
+        this._save_progress();
+        if (this.timeLogger) {
+            this.timeLogger.close("navigation", () => {
+                frappe.set_route("lms-player", {
+                    lesson: lessonName,
+                    enrollment: this.params.enrollment,
+                });
+            });
+        } else {
+            frappe.set_route("lms-player", {
+                lesson: lessonName,
+                enrollment: this.params.enrollment,
+            });
+        }
+    }
+
+    _complete_course() {
+        frappe.msgprint({
+            title: "🎓 Tabriklaymiz!",
+            message: "Siz kursni muvaffaqiyatli tugatdingiz!",
+            indicator: "green",
+        });
+        setTimeout(() => frappe.set_route("lms-dashboard"), 2500);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // SECTION 11: Utilities & Cleanup
+    // ═══════════════════════════════════════════════════════════════
+
+    _bind_global_events() {
+        const $root = this.$main;
+
+        // Sidebar toggle
+        $root.on("click", "#lms-hamburger", () => {
+            $root.find("#lms-sidebar").addClass("lms-sidebar-open");
+            $root.find("#lms-sidebar-overlay").show();
+        });
+        $root.on("click", "#lms-sidebar-close, #lms-sidebar-overlay", () => {
+            $root.find("#lms-sidebar").removeClass("lms-sidebar-open");
+            $root.find("#lms-sidebar-overlay").hide();
+        });
+
+        // FIX 3: Dashboard button handler
+        $root.on("click", "#lms-dash-btn", () => {
+            this._end_session("normal");
+        });
+
+        // Sidebar section collapse
+        $root.on("click", ".lms-sidebar-sec-header", (e) => {
+            const id = $(e.currentTarget).data("toggle");
+            const $lessons = $root.find(`#${id}`);
+            $lessons.toggleClass("lms-collapsed");
+            $(e.currentTarget).find(".lms-sidebar-toggle-icon")
+                .text($lessons.hasClass("lms-collapsed") ? "▶" : "▼");
+        });
+
+        // Sidebar lesson click
+        $root.on("click", ".lms-sidebar-lesson", (e) => {
+            const $el = $(e.currentTarget);
+            if ($el.data("locked") == 1) {
+                frappe.show_alert({ message: $el.attr("title"), indicator: "orange" }, 3);
+                return;
+            }
+            const lesson = $el.data("lesson");
+            if (lesson && lesson !== this.params.lesson) {
+                this._navigate_to_lesson(lesson);
+            }
+        });
+
+        // Tab buttons
+        $root.on("click", ".lms-tab-btn", (e) => {
+            const tab = $(e.currentTarget).data("tab");
+            this._switch_tab(tab);
+        });
+
+        // Navigation buttons
+        $root.on("click", "#lms-nav-prev, #lms-mob-prev", () => {
+            const prev = this.data.navigation.previous_lesson;
+            if (prev) this._navigate_to_lesson(prev);
+        });
+
+        $root.on("click", "#lms-nav-next, #lms-mob-next", () => {
+            if (!this.data.navigation.can_go_next) return;
+            if (this.data.navigation.is_last) {
+                this._complete_course();
+            } else {
+                const next = this.data.navigation.next_lesson;
+                if (next) this._navigate_to_lesson(next);
+            }
+        });
+
+        $root.on("click", "#lms-mob-lessons", () => {
+            $root.find("#lms-sidebar").addClass("lms-sidebar-open");
+            $root.find("#lms-sidebar-overlay").show();
+        });
+
+        // Page visibility
+        const visHandler = () => {
+            if (document.hidden) {
+                this.videoEngine && this.videoEngine.pause();
+                this.inactivityManager && this.inactivityManager.pause();
+            } else {
+                this.inactivityManager && this.inactivityManager.resume();
+            }
+        };
+        document.addEventListener("visibilitychange", visHandler);
+        this._allListeners.push(() =>
+            document.removeEventListener("visibilitychange", visHandler)
+        );
+
+        // Speed menu outside click
+        $root.on("click", (e) => {
+            if (!$(e.target).closest("#lms-ctrl-speed").length) {
+                $root.find("#lms-speed-menu").hide();
+            }
+        });
+    }
+
+    destroy() {
+        this._destroyed = true;
+        localStorage.removeItem("lms_player_active");
+        this._allIntervals.forEach((id) => clearInterval(id));
+        this._allListeners.forEach((fn) => fn());
+        this.videoEngine && this.videoEngine.destroy();
+        this.inactivityManager && this.inactivityManager.destroy();
+        if (this._beforeUnloadHandler) {
+            window.removeEventListener("beforeunload", this._beforeUnloadHandler);
+        }
+        this.$main.off();
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// VIDEO ENGINE CLASS
+// ═══════════════════════════════════════════════════════════════
+
+class VideoEngine {
+    constructor(embedEl, videoUrl, duration, lastPosition, maxWatched, callbacks) {
+        this.embedEl = embedEl;
+        this.videoUrl = videoUrl;
+        this.duration = duration || 1;
+        this.currentPosition = lastPosition || 0;
+        this.maxWatchedPosition = maxWatched || 0;
+        this.watchTimeSec = 0;
+        this.completionPercent = maxWatched > 0 ? Math.min(100, (maxWatched / this.duration) * 100) : 0;
+        this.volume = 1;
+        this.isMuted = false;
+        this.playbackRate = 1;
+        this.callbacks = callbacks || {};
+
+        this.playerType = null;
+        this.ytPlayer = null;
+        this.vimeoPlayer = null;
+        this.htmlVideo = null;
+        this._pollInterval = null;
+        this._playStartTime = null;
+        this._playStartPos = null;
+
+        this._init();
+    }
+
+    _init() {
+        const url = this.videoUrl || "";
+        if (url.includes("youtube.com") || url.includes("youtu.be")) {
+            this.playerType = "youtube";
+            this._init_youtube();
+        } else if (url.includes("vimeo.com")) {
+            this.playerType = "vimeo";
+            this._init_vimeo();
+        } else {
+            this.playerType = "html5";
+            this._init_html5();
+        }
+    }
+
+    // ── YouTube ──────────────────────────────────────────────────────────
+    _init_youtube() {
+        const videoId = this._extract_youtube_id(this.videoUrl);
+        if (!videoId) {
+            this.callbacks.onError && this.callbacks.onError();
+            return;
+        }
+
+        const container = document.createElement("div");
+        container.id = "lms-yt-player-" + _uid();
+        this.embedEl.appendChild(container);
+
+        _ensureYouTubeAPI().then(() => {
+            this.ytPlayer = new YT.Player(container.id, {
+                videoId,
+                playerVars: {
+                    controls: 0,
+                    rel: 0,
+                    modestbranding: 1,
+                    disablekb: 1,
+                    fs: 0,
+                    playsinline: 1,
+                    start: Math.floor(this.currentPosition),
+                },
+                events: {
+                    onReady: (e) => {
+                        // FIX 1a: Explicitly unMute before setVolume.
+                        // Chrome autoplay policy silently mutes the player
+                        // when controls:0 is used. unMute() must come first.
+                        e.target.unMute();
+                        e.target.setVolume(100);
+                        e.target.setPlaybackRate(this.playbackRate);
+                    },
+                    onStateChange: (e) => {
+                        if (e.data === YT.PlayerState.PLAYING) {
+                            this._onPlay();
+                        } else if (
+                            e.data === YT.PlayerState.PAUSED ||
+                            e.data === YT.PlayerState.ENDED
+                        ) {
+                            this._onPause();
+                        }
+                    },
+                    onError: () => {
+                        this.callbacks.onError && this.callbacks.onError();
+                    },
+                },
+            });
+
+            this._pollInterval = setInterval(() => {
+                if (
+                    this.ytPlayer &&
+                    this.ytPlayer.getPlayerState &&
+                    this.ytPlayer.getPlayerState() === YT.PlayerState.PLAYING
+                ) {
+                    const pos = this.ytPlayer.getCurrentTime();
+                    this._checkAntiSkip(pos);
+                    this._tick(pos);
+                }
+            }, 500);
+        });
+    }
+
+    _extract_youtube_id(url) {
+        const match = url.match(
+            /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&?/]+)/
+        );
+        return match ? match[1] : null;
+    }
+
+    // ── Vimeo ─────────────────────────────────────────────────────────────
+    _init_vimeo() {
+        const vimeoId = this._extract_vimeo_id(this.videoUrl);
+        if (!vimeoId) {
+            this.callbacks.onError && this.callbacks.onError();
+            return;
+        }
+
+        const iframe = document.createElement("iframe");
+        iframe.src = `https://player.vimeo.com/video/${vimeoId}?controls=0&playsinline=1`;
+        iframe.style.cssText = "width:100%;height:100%;border:none;";
+        iframe.allow = "autoplay; fullscreen";
+        this.embedEl.appendChild(iframe);
+
+        _ensureVimeoAPI().then(() => {
+            this.vimeoPlayer = new Vimeo.Player(iframe);
+
+            // FIX 1b: Set volume explicitly after Vimeo player init
+            this.vimeoPlayer.setVolume(1).catch(() => {});
+            this.vimeoPlayer.setCurrentTime(this.currentPosition).catch(() => {});
+
+            this.vimeoPlayer.on("timeupdate", (data) => {
+                const pos = data.seconds;
+                this._checkAntiSkip(pos);
+                this._tick(pos);
+            });
+
+            this.vimeoPlayer.on("play", () => this._onPlay());
+            this.vimeoPlayer.on("pause", () => this._onPause());
+            this.vimeoPlayer.on("ended", () => this._onPause());
+            this.vimeoPlayer.on("error", () => {
+                this.callbacks.onError && this.callbacks.onError();
+            });
+        });
+    }
+
+    _extract_vimeo_id(url) {
+        const match = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+        return match ? match[1] : null;
+    }
+
+    // ── HTML5 ─────────────────────────────────────────────────────────────
+    _init_html5() {
+        const video = document.createElement("video");
+        video.style.cssText = "width:100%;height:100%;";
+        video.src = this.videoUrl;
+        video.preload = "metadata";
+        video.disablePictureInPicture = true;
+        video.controlsList = "nodownload";
+
+        // FIX 1c: Explicitly set volume and muted state.
+        // Browser may inherit a muted state from a previous session or
+        // apply autoplay-mute policy. Force unmuted at init.
+        video.volume = 1;
+        video.muted = false;
+
+        this.htmlVideo = video;
+        this.embedEl.appendChild(video);
+
+        video.addEventListener("loadedmetadata", () => {
+            video.currentTime = this.currentPosition;
+        });
+
+        video.addEventListener("seeking", () => {
+            const pos = video.currentTime;
+            if (pos > this.maxWatchedPosition + 5) {
+                video.currentTime = this.maxWatchedPosition;
+            }
+        });
+
+        video.addEventListener("timeupdate", () => {
+            const pos = video.currentTime;
+            this._tick(pos);
+        });
+
+        video.addEventListener("play", () => this._onPlay());
+        video.addEventListener("pause", () => this._onPause());
+        video.addEventListener("ended", () => this._onPause());
+        video.addEventListener("error", () => {
+            this.callbacks.onError && this.callbacks.onError();
+        });
+    }
+
+    // ── Shared logic ──────────────────────────────────────────────────────
+    _checkAntiSkip(pos) {
+        if (pos > this.maxWatchedPosition + 5) {
+            this._setPositionInternal(this.maxWatchedPosition);
+        }
+    }
+
+    _tick(pos) {
+        this.currentPosition = pos;
+        if (pos > this.maxWatchedPosition) {
+            this.maxWatchedPosition = pos;
+        }
+        if (this._playStartTime && this._playStartPos !== null) {
+            const elapsed = (Date.now() - this._playStartTime) / 1000;
+            this.watchTimeSec = Math.floor(elapsed);
+        }
+        this.completionPercent = Math.min(100, (this.maxWatchedPosition / this.duration) * 100);
+        const newSec = Math.floor(pos);
+		if (newSec !== this._lastDisplayedSec) {
+			this._lastDisplayedSec = newSec;
+			this.callbacks.onTimeUpdate &&
+				this.callbacks.onTimeUpdate(pos, this.maxWatchedPosition, this.watchTimeSec);
 		}
 	}
 
-	/* ── Helpers ─────────────────────────────────────────────────── */
-	_esc(v) {
-		if (!v) return '';
-		return String(v).replace(/[&<>"']/g, function (c) {
-			return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c];
-		});
-	}
+    _onPlay() {
+        this._playStartTime = Date.now();
+        this._playStartPos = this.currentPosition;
+        this.callbacks.onPlay && this.callbacks.onPlay();
+    }
 
-	_err(title, detail) {
-		return '<div class="lp-errpage"><div class="lp-errbox">' +
-			'<h2>Xato</h2>' +
-			'<p class="lp-err-title">' + this._esc(title) + '</p>' +
-			(detail ? '<p class="lp-err-detail">' + detail + '</p>' : '') +
-			'<a href="/app/lms_dashboard" class="lp-btn lp-btn-p">&larr; Dashboardga qaytish</a>' +
-			'</div></div>';
-	}
+    _onPause() {
+        if (this._playStartTime) {
+            this.watchTimeSec += Math.floor((Date.now() - this._playStartTime) / 1000);
+            this._playStartTime = null;
+        }
+        this.callbacks.onPause && this.callbacks.onPause();
+    }
+
+    _setPositionInternal(sec) {
+        const clamped = Math.max(0, Math.min(sec, this.maxWatchedPosition));
+        if (this.playerType === "youtube" && this.ytPlayer && this.ytPlayer.seekTo) {
+            this.ytPlayer.seekTo(clamped, true);
+        } else if (this.playerType === "vimeo" && this.vimeoPlayer) {
+            this.vimeoPlayer.setCurrentTime(clamped).catch(() => {});
+        } else if (this.playerType === "html5" && this.htmlVideo) {
+            this.htmlVideo.currentTime = clamped;
+        }
+    }
+
+    // ── Public API ────────────────────────────────────────────────────────
+    togglePlay() {
+        if (this.playerType === "youtube" && this.ytPlayer) {
+            const state = this.ytPlayer.getPlayerState();
+            if (state === YT.PlayerState.PLAYING) {
+                this.ytPlayer.pauseVideo();
+            } else {
+                this.ytPlayer.playVideo();
+            }
+        } else if (this.playerType === "vimeo" && this.vimeoPlayer) {
+            this.vimeoPlayer.getPaused().then((paused) => {
+                if (paused) this.vimeoPlayer.play();
+                else this.vimeoPlayer.pause();
+            });
+        } else if (this.htmlVideo) {
+            if (this.htmlVideo.paused) this.htmlVideo.play();
+            else this.htmlVideo.pause();
+        }
+    }
+
+    play() {
+        if (this.playerType === "youtube" && this.ytPlayer) {
+            this.ytPlayer.playVideo();
+        } else if (this.playerType === "vimeo" && this.vimeoPlayer) {
+            this.vimeoPlayer.play();
+        } else if (this.htmlVideo) {
+            // FIX 1d: Handle play() Promise rejection (browser autoplay policy)
+            const p = this.htmlVideo.play();
+            if (p !== undefined) {
+                p.catch(() => {
+                    // Browser blocked autoplay — user must interact first.
+                    // Do not throw; UI will stay paused.
+                });
+            }
+        }
+    }
+
+    pause() {
+        if (this.playerType === "youtube" && this.ytPlayer) this.ytPlayer.pauseVideo();
+        else if (this.playerType === "vimeo" && this.vimeoPlayer) this.vimeoPlayer.pause();
+        else if (this.htmlVideo) this.htmlVideo.pause();
+    }
+
+    seek(deltaSec) {
+        const newPos = this.currentPosition + deltaSec;
+        const clamped = Math.max(0, Math.min(newPos, this.maxWatchedPosition));
+        this._setPositionInternal(clamped);
+    }
+
+    seekToAbs(sec) {
+        const clamped = Math.max(0, Math.min(sec, this.maxWatchedPosition));
+        this._setPositionInternal(clamped);
+    }
+
+    setVolume(vol) {
+        this.volume = vol;
+        if (this.playerType === "youtube" && this.ytPlayer) {
+            this.ytPlayer.setVolume(vol * 100);
+        } else if (this.playerType === "vimeo" && this.vimeoPlayer) {
+            this.vimeoPlayer.setVolume(vol);
+        } else if (this.htmlVideo) {
+            this.htmlVideo.volume = vol;
+        }
+    }
+
+    toggleMute() {
+        this.isMuted = !this.isMuted;
+        if (this.playerType === "youtube" && this.ytPlayer) {
+            if (this.isMuted) this.ytPlayer.mute();
+            else this.ytPlayer.unMute();
+        } else if (this.playerType === "vimeo" && this.vimeoPlayer) {
+            this.vimeoPlayer.setVolume(this.isMuted ? 0 : this.volume);
+        } else if (this.htmlVideo) {
+            this.htmlVideo.muted = this.isMuted;
+        }
+        return this.isMuted;
+    }
+
+    setPlaybackRate(rate) {
+        this.playbackRate = rate;
+        if (this.playerType === "youtube" && this.ytPlayer) {
+            this.ytPlayer.setPlaybackRate(rate);
+        } else if (this.playerType === "vimeo" && this.vimeoPlayer) {
+            this.vimeoPlayer.setPlaybackRate(rate).catch(() => {});
+        } else if (this.htmlVideo) {
+            this.htmlVideo.playbackRate = rate;
+        }
+    }
+
+    destroy() {
+        if (this._pollInterval) clearInterval(this._pollInterval);
+        if (this.ytPlayer && this.ytPlayer.destroy) this.ytPlayer.destroy();
+        if (this.vimeoPlayer && this.vimeoPlayer.destroy) this.vimeoPlayer.destroy();
+        if (this.htmlVideo) {
+            this.htmlVideo.pause();
+            this.htmlVideo.src = "";
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// QUIZ ENGINE CLASS
+// ═══════════════════════════════════════════════════════════════
+
+class QuizEngine {
+    constructor(container, quizData, lessonData, params, onResult) {
+        this.container = container;
+        this.quizData = quizData;
+        this.lessonData = lessonData;
+        this.params = params;
+        this.onResult = onResult;
+        this.state = "idle";
+        this.attemptName = null;
+        this.questions = [];
+        this.answers = {};
+        this.currentQ = 0;
+        this.timerInterval = null;
+        this.remainingSec = 0;
+        this._draftInterval = null;
+
+        this.mount(container);
+    }
+
+    mount(container) {
+        this.container = container;
+        if (this.state === "active") {
+            this._render_active();
+        } else if (this.state === "result") {
+            this._render_result(this._lastResult);
+        } else {
+            this._render_idle();
+        }
+    }
+
+    _render_idle() {
+        const q = this.quizData;
+        if (!q) { this.container.innerHTML = '<div class="lms-empty">Quiz topilmadi.</div>'; return; }
+
+        const attemptsStr = q.max_attempts
+            ? `${q.attempts_used || 0} / ${q.max_attempts}`
+            : `${q.attempts_used || 0} / ∞`;
+
+        const hasIncomplete = q.incomplete_attempt_name;
+        const canStart = q.can_retry !== false;
+
+        let resultSummary = "";
+        if (q.best_percentage !== null && q.best_percentage !== undefined) {
+            const passed = q.is_passed;
+            resultSummary = `
+                <div class="lms-quiz-prev-result">
+                    Eng yaxshi natija: <strong>${q.best_percentage}%</strong>
+                    <span class="lms-badge ${passed ? "lms-badge-green" : "lms-badge-red"}">
+                        ${passed ? "✅ O'tdi" : "❌ O'tmadi"}
+                    </span>
+                </div>`;
+        }
+
+        if (!canStart && !hasIncomplete) {
+            this.container.innerHTML = `
+                <div class="lms-quiz-card lms-quiz-failed-card">
+                    <h3>❌ Siz quizdan o'ta olmadingiz</h3>
+                    ${resultSummary}
+                    <p>Urinishlar tugadi: ${attemptsStr}</p>
+                    <p>Administrator bilan bog'laning.</p>
+                </div>`;
+            return;
+        }
+
+        this.container.innerHTML = `
+            <div class="lms-quiz-card lms-quiz-idle-card">
+                <h3>📝 ${_esc(q.quiz_title || "Quiz")}</h3>
+                <div class="lms-quiz-meta">
+                    ${q.questions_to_show ? `<div>Savollar: ${q.questions_to_show}</div>` : ""}
+                    ${q.time_limit_min ? `<div>⏱️ Vaqt: ${q.time_limit_min} daqiqa</div>` : ""}
+                    <div>O'tish balli: ${q.passing_score || 0}%</div>
+                    <div>Urinishlar: ${attemptsStr}</div>
+                </div>
+                ${resultSummary}
+                ${hasIncomplete
+                    ? '<div class="lms-quiz-resume-notice">⚡ Yakunlanmagan urinish aniqlandi.</div>'
+                    : ""}
+                <button class="lms-btn lms-btn-primary lms-quiz-start-btn" id="lms-quiz-start">
+                    ${hasIncomplete ? "⏯️ Davom ettirish" : "▶ Quizni boshlash"}
+                </button>
+            </div>`;
+
+        $(this.container).on("click", "#lms-quiz-start", () => this._start());
+    }
+
+    _start() {
+        this.state = "loading";
+        this.container.innerHTML = '<div class="lms-loading-spin"></div>';
+
+        frappe
+            .xcall("pro_lms.lms_for_dbr.api.player.start_quiz", {
+                quiz_name: this.quizData.quiz_name,
+                lesson_name: this.params.lesson,
+            })
+            .then((res) => {
+                this.attemptName = res.attempt_name;
+                this.questions = res.questions || [];
+                this.answers = res.saved_answers || {};
+                this.currentQ = 0;
+                this.remainingSec = res.remaining_sec || 0;
+                this.state = "active";
+
+                this._draftInterval = setInterval(() => this._save_draft(), 30000);
+
+                this._render_active();
+
+                if (res.time_limit_sec > 0) {
+                    this._start_timer();
+                }
+            })
+            .catch((e) => {
+                frappe.msgprint(e.message || "Quizni boshlashda xato.");
+                this._render_idle();
+            });
+    }
+
+    _render_active() {
+        if (!this.questions.length) {
+            this.container.innerHTML = '<div class="lms-empty">Savollar topilmadi.</div>';
+            return;
+        }
+
+        const q = this.questions[this.currentQ];
+        const total = this.questions.length;
+        const answered = Object.keys(this.answers).length;
+
+        const dots = this.questions
+            .map((_, i) => {
+                const isCur = i === this.currentQ;
+                const isAns = !!this.answers[this.questions[i].question_name];
+                return `<span class="lms-quiz-dot${isCur ? " lms-dot-current" : ""}${isAns ? " lms-dot-answered" : ""}"
+                              data-qidx="${i}"></span>`;
+            })
+            .join("");
+
+        const timerHtml = this.remainingSec > 0
+            ? `<div class="lms-quiz-timer" id="lms-quiz-timer">⏱️ ${_fmtTime(this.remainingSec)}</div>`
+            : "";
+
+        const options = (q.options || [])
+            .map((opt) => {
+                const isSelected = this.answers[q.question_name] === opt.name;
+                return `
+                    <label class="lms-quiz-option${isSelected ? " lms-opt-selected" : ""}">
+                        <input type="radio" name="lms-quiz-opt"
+                               value="${_esc(opt.name)}"
+                               ${isSelected ? "checked" : ""}>
+                        <span>${_esc(opt.option_text)}</span>
+                    </label>`;
+            })
+            .join("");
+
+        this.container.innerHTML = `
+            <div class="lms-quiz-card lms-quiz-active-card">
+                <div class="lms-quiz-active-header">
+                    ${timerHtml}
+                    <span class="lms-quiz-progress">Savol ${this.currentQ + 1} / ${total}</span>
+                    <span class="lms-quiz-answered-count">${answered} ta javob berildi</span>
+                </div>
+                <div class="lms-quiz-question-card">
+                    <p class="lms-quiz-question-text">${this.currentQ + 1}. ${_esc(q.question)}</p>
+                    <div class="lms-quiz-options">${options}</div>
+                </div>
+                <div class="lms-quiz-dots">${dots}</div>
+                <div class="lms-quiz-nav-row">
+                    <button class="lms-btn lms-btn-secondary" id="lms-quiz-prev"
+                            ${this.currentQ === 0 ? "disabled" : ""}>◀ Oldingi</button>
+                    ${this.currentQ < total - 1
+                        ? `<button class="lms-btn lms-btn-primary" id="lms-quiz-next">Keyingi ▶</button>`
+                        : `<button class="lms-btn lms-btn-danger" id="lms-quiz-submit-btn">📤 Topshirish</button>`}
+                </div>
+            </div>`;
+
+        const $c = $(this.container);
+        $c.off("change", 'input[name="lms-quiz-opt"]')
+          .on("change", 'input[name="lms-quiz-opt"]', (e) => {
+              this.answers[q.question_name] = e.target.value;
+              $(e.target).closest(".lms-quiz-options")
+                  .find(".lms-quiz-option").removeClass("lms-opt-selected");
+              $(e.target).closest(".lms-quiz-option").addClass("lms-opt-selected");
+              this._render_dots();
+          });
+
+        $c.off("click", "#lms-quiz-prev").on("click", "#lms-quiz-prev", () => {
+            if (this.currentQ > 0) { this.currentQ--; this._render_active(); }
+        });
+        $c.off("click", "#lms-quiz-next").on("click", "#lms-quiz-next", () => {
+            if (this.currentQ < this.questions.length - 1) { this.currentQ++; this._render_active(); }
+        });
+        $c.off("click", "#lms-quiz-submit-btn").on("click", "#lms-quiz-submit-btn", () => {
+            frappe.confirm(
+                "Quizni topshirishni tasdiqlaysizmi?",
+                () => this._submit()
+            );
+        });
+        $c.off("click", ".lms-quiz-dot").on("click", ".lms-quiz-dot", (e) => {
+            this.currentQ = parseInt($(e.currentTarget).data("qidx"));
+            this._render_active();
+        });
+    }
+
+    _render_dots() {
+        const $dots = $(this.container).find(".lms-quiz-dots");
+        if (!$dots.length) return;
+        $dots.html(
+            this.questions
+                .map((_, i) => {
+                    const isCur = i === this.currentQ;
+                    const isAns = !!this.answers[this.questions[i].question_name];
+                    return `<span class="lms-quiz-dot${isCur ? " lms-dot-current" : ""}${isAns ? " lms-dot-answered" : ""}"
+                                  data-qidx="${i}"></span>`;
+                })
+                .join("")
+        );
+    }
+
+    _start_timer() {
+        if (this.timerInterval) clearInterval(this.timerInterval);
+        this.timerInterval = setInterval(() => {
+            this.remainingSec--;
+            const $t = $(this.container).find("#lms-quiz-timer");
+            if ($t.length) $t.text("⏱️ " + _fmtTime(this.remainingSec));
+            if (this.remainingSec <= 0) {
+                clearInterval(this.timerInterval);
+                this._submit(true);
+            }
+        }, 1000);
+    }
+
+    _save_draft() {
+        if (!this.attemptName || !Object.keys(this.answers).length) return;
+        frappe.xcall("pro_lms.lms_for_dbr.api.player.save_quiz_draft", {
+            attempt_name: this.attemptName,
+            answers: JSON.stringify(this.answers),
+        }).catch(() => {});
+    }
+
+    _submit(autoSubmit = false) {
+        if (this.timerInterval) clearInterval(this.timerInterval);
+        if (this._draftInterval) clearInterval(this._draftInterval);
+
+        this.container.innerHTML = '<div class="lms-loading-spin"></div>';
+
+        frappe
+            .xcall("pro_lms.lms_for_dbr.api.player.submit_quiz", {
+                attempt_name: this.attemptName,
+                answers: JSON.stringify(this.answers),
+            })
+            .then((res) => {
+                this._lastResult = res;
+                this.state = "result";
+                this._render_result(res);
+                this.onResult && this.onResult(res);
+            })
+            .catch(() => {
+                frappe.msgprint("Topshirishda xato yuz berdi.");
+                this._render_active();
+            });
+    }
+
+    _render_result(res) {
+        if (!res) return;
+        const passedCls = res.passed ? "lms-result-pass" : "lms-result-fail";
+        const passedLabel = res.passed ? "✅ O'tdingiz!" : "❌ O'ta olmadingiz";
+        const q = this.quizData;
+        const maxAtt = q.max_attempts || 0;
+        const used = (q.attempts_used || 0);
+        const canRetry = maxAtt === 0 || used < maxAtt;
+
+        const perQHtml = res.per_question
+            ? Object.entries(res.per_question)
+                  .map(
+                      ([, correct]) =>
+                          `<span class="lms-result-dot ${correct ? "lms-dot-correct" : "lms-dot-wrong"}">${correct ? "✅" : "❌"}</span>`
+                  )
+                  .join("")
+            : "";
+
+        this.container.innerHTML = `
+            <div class="lms-quiz-card lms-quiz-result-card ${passedCls}">
+                <h3>📊 Natija</h3>
+                <div class="lms-result-score">
+                    <strong>${Math.round(res.percentage || 0)}%</strong>
+                    <span class="lms-badge ${res.passed ? "lms-badge-green" : "lms-badge-red"}">${passedLabel}</span>
+                </div>
+                <div class="lms-quiz-meta">
+                    <div>Ball: ${Math.round(res.score || 0)} / ${Math.round(res.total_marks || 0)}</div>
+                    <div>O'tish balli: ${q.passing_score || 0}%</div>
+                    <div>Vaqt: ${_fmtTime(res.time_taken_sec || 0)}</div>
+                    <div>Urinish: ${res.attempt_number} / ${maxAtt || "∞"}</div>
+                </div>
+                <div class="lms-result-dots">${perQHtml}</div>
+                ${canRetry && !res.passed
+                    ? `<button class="lms-btn lms-btn-secondary" id="lms-quiz-retry">🔄 Qayta urinish</button>`
+                    : ""}
+            </div>`;
+
+        $(this.container).on("click", "#lms-quiz-retry", () => {
+            this.state = "idle";
+            q.incomplete_attempt_name = null;
+            this._render_idle();
+        });
+    }
+
+    destroy() {
+        if (this.timerInterval) clearInterval(this.timerInterval);
+        if (this._draftInterval) clearInterval(this._draftInterval);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INACTIVITY MANAGER
+// ═══════════════════════════════════════════════════════════════
+
+class InactivityManager {
+    constructor(warningAfterSec, logoutAfterSec, onWarn, onLogout) {
+        this.warningAfterSec = warningAfterSec;
+        this.logoutAfterSec = logoutAfterSec;
+        this.onWarn = onWarn;
+        this.onLogout = onLogout;
+        this._timer = null;
+        this._warned = false;
+        this._paused = false;
+
+        const events = ["mousemove", "keydown", "click", "scroll", "touchstart"];
+        this._handler = () => this.reset();
+        events.forEach((ev) => document.addEventListener(ev, this._handler, { passive: true }));
+        this._eventsToRemove = events;
+
+        this._startTimer();
+    }
+
+    _startTimer() {
+        if (this._timer) clearTimeout(this._timer);
+        this._warned = false;
+        this._timer = setTimeout(() => {
+            if (!this._paused) {
+                this._warned = true;
+                this.onWarn && this.onWarn();
+                this._timer = setTimeout(() => {
+                    if (!this._paused) this.onLogout && this.onLogout();
+                }, this.logoutAfterSec * 1000);
+            }
+        }, this.warningAfterSec * 1000);
+    }
+
+    reset() {
+        if (!this._warned && !this._paused) {
+            this._startTimer();
+        }
+    }
+
+    pause() { this._paused = true; if (this._timer) clearTimeout(this._timer); }
+    resume() { this._paused = false; this._startTimer(); }
+
+    destroy() {
+        if (this._timer) clearTimeout(this._timer);
+        this._eventsToRemove.forEach((ev) =>
+            document.removeEventListener(ev, this._handler)
+        );
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TIME LOGGER
+// ═══════════════════════════════════════════════════════════════
+
+class TimeLogger {
+    constructor(initialLogName, lessonName, enrollmentName, activityType) {
+        this.currentLogName = initialLogName;
+        this.lessonName = lessonName;
+        this.enrollmentName = enrollmentName;
+        this.currentActivity = activityType;
+    }
+
+    switchActivity(newActivity, params) {
+        this.close("activity_switch", () => {
+            frappe
+                .xcall("pro_lms.lms_for_dbr.api.player.create_time_log", {
+                    lesson_name: params.lesson,
+                    enrollment_name: params.enrollment,
+                    activity_type: newActivity,
+                })
+                .then((res) => {
+                    this.currentLogName = res.time_log_name;
+                    this.currentActivity = newActivity;
+                })
+                .catch(() => {});
+        });
+    }
+
+    close(reason, callback) {
+        if (!this.currentLogName) {
+            callback && callback();
+            return;
+        }
+        frappe
+            .xcall("pro_lms.lms_for_dbr.api.player.update_time_log", {
+                time_log_name: this.currentLogName,
+                end_reason: reason,
+            })
+            .then(() => { callback && callback(); })
+            .catch(() => { callback && callback(); });
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// YOUTUBE API LOADER
+// ═══════════════════════════════════════════════════════════════
+
+window._lms_yt_callbacks = [];
+window._lms_yt_loading = false;
+
+function _ensureYouTubeAPI() {
+    return new Promise((resolve) => {
+        if (window.YT && window.YT.Player) { resolve(); return; }
+        window._lms_yt_callbacks.push(resolve);
+        if (!window._lms_yt_loading) {
+            window._lms_yt_loading = true;
+            window.onYouTubeIframeAPIReady = function () {
+                window._lms_yt_callbacks.forEach((cb) => cb());
+                window._lms_yt_callbacks = [];
+            };
+            const s = document.createElement("script");
+            s.src = "https://www.youtube.com/iframe_api";
+            document.head.appendChild(s);
+        }
+    });
+}
+
+function _ensureVimeoAPI() {
+    return new Promise((resolve) => {
+        if (window.Vimeo && window.Vimeo.Player) { resolve(); return; }
+        const s = document.createElement("script");
+        s.src = "https://player.vimeo.com/api/player.js";
+        s.onload = resolve;
+        document.head.appendChild(s);
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PURE UTILITIES
+// ═══════════════════════════════════════════════════════════════
+
+function _uid() { return "lp" + Math.random().toString(36).slice(2, 9); }
+function _esc(s) {
+    if (!s) return "";
+    return String(s)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function _fmtTime(sec) {
+    if (!sec || sec < 0) return "0:00";
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${String(s).padStart(2, "0")}`;
+}
+function _fmtDuration(sec) {
+    if (!sec) return "0:00";
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${String(s).padStart(2, "0")}`;
+}
+function _progressBar(pct) {
+    const v = Math.max(0, Math.min(100, pct || 0));
+    return `
+        <div class="lms-prog-wrap">
+            <div class="lms-prog-bar">
+                <div class="lms-prog-fill" style="width:${v}%"></div>
+            </div>
+            <span class="lms-prog-label">${v}%</span>
+        </div>`;
 }

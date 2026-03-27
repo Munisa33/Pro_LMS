@@ -1,9 +1,15 @@
 {
+ "content": null,
+ "creation": "2026-02-24 22:19:00.000000",
+ "docstatus": 0,
  "doctype": "Page",
+ "idx": 0,
+ "modified": "2026-03-27 00:00:00.000000",
+ "modified_by": "Administrator",
  "module": "LMS for DBR",
  "name": "lms-player",
+ "owner": "Administrator",
  "page_name": "lms-player",
- "title": "LMS Player",
  "roles": [
   {
    "role": "Employee"
@@ -11,5 +17,10 @@
   {
    "role": "System Manager"
   }
- ]
+ ],
+ "script": null,
+ "standard": "Yes",
+ "style": null,
+ "system_page": 0,
+ "title": "LMS Player"
 }
