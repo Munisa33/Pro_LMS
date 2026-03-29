@@ -372,21 +372,32 @@ def get_dashboard_data():
             )
             all_lessons_flat.extend(sec["lessons"])
 
-        # Sequential locking
+        # Sequential locking — tugallangan darslar HECH QACHON lock bo'lmaydi
+        is_seq = bool(enr.is_sequential)
         for i, lesson in enumerate(all_lessons_flat):
-            if bool(enr.is_sequential) and not lesson["is_free_preview"]:
-                if i == 0:
-                    lesson["is_locked"] = False
-                else:
-                    lesson["is_locked"] = not all_lessons_flat[i - 1]["progress"]["is_completed"]
+            if not is_seq or lesson["is_free_preview"]:
+                lesson["is_locked"] = False
+                continue
+            is_completed = lesson["progress"]["is_completed"]
+            if i == 0 or is_completed:
+                lesson["is_locked"] = False
+            else:
+                lesson["is_locked"] = not all_lessons_flat[i - 1]["progress"]["is_completed"]
 
-        # Section-level progress
-        for sec in sections:
+        # Section-level progress + locking
+        for i, sec in enumerate(sections):
             total_s = len(sec["lessons"])
             done_s = sum(1 for l in sec["lessons"] if l["progress"]["is_completed"])
             sec["section_progress"] = (
                 round(done_s / total_s * 100) if total_s > 0 else 0
             )
+            if not is_seq or i == 0:
+                sec["is_locked"] = False
+            else:
+                prev_sec = sections[i - 1]
+                sec["is_locked"] = not all(
+                    l["progress"]["is_completed"] for l in prev_sec["lessons"]
+                )
 
         total_l = len(all_lessons_flat)
         done_l = sum(1 for l in all_lessons_flat if l["progress"]["is_completed"])
@@ -402,6 +413,7 @@ def get_dashboard_data():
             "course_progress": course_progress,
             "instructor": enr.instructor,
             "order_index": enr.course_order_index or 0,
+            "is_locked": False,
             "sections": sections,
         }
 
@@ -431,6 +443,12 @@ def get_dashboard_data():
     for prog in sorted_programs:
         # Sort courses within each program by order_index
         prog["courses"].sort(key=lambda c: c.get("order_index") or 0)
+        # Course-level sequential locking — oldingi kursni tugatmay keyingisiga o'tib bo'lmaydi
+        for i, course in enumerate(prog["courses"]):
+            if i == 0:
+                course["is_locked"] = False
+            else:
+                course["is_locked"] = prog["courses"][i - 1]["course_progress"] < 100
         prog_scores = [c["course_progress"] for c in prog["courses"]]
         prog["program_progress"] = (
             round(sum(prog_scores) / len(prog_scores)) if prog_scores else 0

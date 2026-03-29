@@ -170,6 +170,19 @@ class LMSDashboard {
     }
 
     _course_node_html(course, depth) {
+        const isLocked = course.is_locked || false;
+
+        if (isLocked) {
+            return `
+                <div class="lms-tree-node lms-node-course lms-locked" style="--lms-depth:${depth}">
+                    <div class="lms-node-header" title="Avvalgi kursni tugatib bo'lgach ochiladi">
+                        <span class="lms-node-icon">🔒</span>
+                        <span class="lms-node-title">${_esc(course.course_name)}</span>
+                        <span class="lms-lock-hint" style="font-size:12px;color:#888;margin-left:8px;">Avvalgi kursni tugating</span>
+                    </div>
+                </div>`;
+        }
+
         const uid = _uid();
         const status_cls =
             course.enrollment_status === "Completed"
@@ -202,10 +215,23 @@ class LMSDashboard {
     }
 
     _section_node_html(section, course, depth) {
+        const isLocked = section.is_locked || false;
         const uid = _uid();
         const lessons_html = (section.lessons || [])
             .map((l) => this._lesson_node_html(l, course))
             .join("");
+
+        if (isLocked) {
+            return `
+                <div class="lms-tree-node lms-node-section lms-locked" style="--lms-depth:${depth}">
+                    <div class="lms-node-header" title="Avvalgi bo'limni tugatib bo'lgach ochiladi">
+                        <span class="lms-node-icon">🔒</span>
+                        <span class="lms-node-title">${_esc(section.section_title)}</span>
+                        <span class="lms-lock-hint" style="font-size:12px;color:#888;margin-left:8px;">Avvalgi bo'limni tugating</span>
+                    </div>
+                </div>`;
+        }
+
         return `
             <div class="lms-tree-node lms-node-section" style="--lms-depth:${depth}">
                 <div class="lms-node-header" data-toggle="${uid}">

@@ -11,6 +11,8 @@ frappe.pages["lms-player"].on_page_load = function (wrapper) {
     localStorage.removeItem("_page:lms-player");
 };
 
+const _SS_KEY = "lms_player_session";
+
 frappe.pages["lms-player"].on_page_hide = function (wrapper) {
     localStorage.removeItem("lms_player_active");
     if (wrapper.lms_player_instance) {
@@ -32,25 +34,39 @@ frappe.pages["lms-player"].on_page_show = function (wrapper) {
         return;
     }
 
+    // Refresh uchun sessionStorage ga saqlaymiz
+    sessionStorage.setItem(_SS_KEY, JSON.stringify({ lesson: params.lesson, enrollment: params.enrollment }));
+
     wrapper.lms_player_instance = new LMSPlayer(wrapper, params);
 };
 
 function _parseUrlParams() {
+    // 1. window global (navigate_to_lesson tomonidan set qilinadi)
     const stored = window._lms_player_params;
     if (stored && stored.lesson && stored.enrollment) {
         window._lms_player_params = null;
         return { lesson: stored.lesson, enrollment: stored.enrollment };
     }
+    // 2. Frappe route options (dashboard/player ichidan o'tilganda)
     const opts = frappe.route_options || {};
     if (opts.lesson && opts.enrollment) {
         frappe.route_options = null;
         return { lesson: opts.lesson, enrollment: opts.enrollment };
     }
+    // 3. URL query string
     const q = new URLSearchParams(window.location.search);
-    return {
-        lesson: q.get("lesson") || "",
-        enrollment: q.get("enrollment") || "",
-    };
+    if (q.get("lesson") && q.get("enrollment")) {
+        return { lesson: q.get("lesson"), enrollment: q.get("enrollment") };
+    }
+    // 4. Refresh holatida sessionStorage dan qayta yuklaymiz
+    try {
+        const ss = sessionStorage.getItem(_SS_KEY);
+        if (ss) {
+            const p = JSON.parse(ss);
+            if (p.lesson && p.enrollment) return p;
+        }
+    } catch (_) {}
+    return { lesson: "", enrollment: "" };
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1146,6 +1162,13 @@ _close_floating_panel() {
 
     _navigate_to_lesson(lessonName) {
         this._save_progress();
+        // Yangi dars uchun sessionStorage ni yangilaymiz (refresh xavfsizligi)
+        try {
+            sessionStorage.setItem(_SS_KEY, JSON.stringify({
+                lesson: lessonName,
+                enrollment: this.params.enrollment,
+            }));
+        } catch (_) {}
         if (this.timeLogger) {
             this.timeLogger.close("navigation", () => {
                 frappe.set_route("lms-player", {

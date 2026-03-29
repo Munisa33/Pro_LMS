@@ -290,7 +290,8 @@ def get_player_data(lesson_name, enrollment_name):
         if not is_sequential or lesson.get("is_free_preview"):
             lesson["is_locked"] = False
             continue
-        if i == 0:
+        # Tugallangan darslar HECH QACHON lock bo'lmaydi (qayta ko'rish uchun)
+        if i == 0 or lesson.get("is_completed"):
             lesson["is_locked"] = False
         else:
             lesson["is_locked"] = not _is_lesson_sidebar_complete(all_lessons_flat[i - 1])

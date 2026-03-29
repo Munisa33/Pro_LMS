@@ -22,7 +22,8 @@ class LMSCourseBuilder(Document):
 
             self.db_set("build_status",    "Yaratildi: {} ta document".format(len(created)))
             self.db_set("created_course",  course.name)
-            self.db_set("created_program", program.name)
+            # program mavjud doc — o'chirib yubormaslik uchun created_program ga saqlamaymiz
+            self.db_set("created_program", None)
 
             _show_success(course.name, stats)
 
@@ -193,13 +194,8 @@ class LMSCourseBuilder(Document):
                 frappe.throw(_("Open Questions Row {} (\"{}\"): Savol matni bosh.".format(row.idx, row.lesson_title)))
 
     def _create_program(self, created):
-        doc = frappe.new_doc("LMS Program")
-        doc.program_name       = self.program_name
-        doc.passing_percentage = self.passing_percentage or 80
-        doc.is_published       = 0
-        doc.insert(ignore_permissions=True)
-        created.append(("LMS Program", doc.name))
-        return doc
+        # program_name — Link field, mavjud programni ishlatamiz (yangi yaratmaymiz)
+        return frappe.get_doc("LMS Program", self.program_name)
 
     def _create_course(self, program, created):
         doc = frappe.new_doc("LMS Course")
