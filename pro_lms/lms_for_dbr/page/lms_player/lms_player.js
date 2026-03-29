@@ -609,10 +609,10 @@ _close_floating_panel() {
                     ${course.instructor ? `<span>👤 O'qituvchi: ${_esc(course.instructor)}</span>` : ""}
                     ${this.data.progress.is_completed ? '<span class="lms-badge lms-badge-green">✅ Tugatilgan</span>' : ""}
                 </div>
-                ${lesson.assignment_instruction
+                ${lesson.lesson_description
                     ? `<div class="lms-desc-instruction" style="background:#f8f9fa; border-left:4px solid #4a90e2; padding:16px 20px; border-radius:4px; margin-top:12px;">
-                           <h4 style="margin-bottom:8px;">Yo'riqnoma</h4>
-                           ${lesson.assignment_instruction}
+                           <h4 style="margin-bottom:8px;">Dars tavsifi</h4>
+                           ${lesson.lesson_description}
                        </div>`
                     : ""}
             </div>

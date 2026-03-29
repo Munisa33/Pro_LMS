@@ -257,6 +257,7 @@ class LMSCourseBuilder(Document):
                 lesson.has_assignment         = row.has_assignment or 0
                 lesson.assignment_type        = row.assignment_type or ""
                 lesson.assignment_instruction = row.assignment_instruction or ""
+                lesson.lesson_description     = row.lesson_description or ""
                 lesson.require_admin_approval = row.require_admin_approval or 0
                 lesson.order_index            = les_idx + 1
                 lesson.is_free_preview        = row.is_free_preview or 0

@@ -10,6 +10,7 @@
   "video_url",
   "video_duration_sec",
   "minimum_watch_percent",
+  "lesson_description",
   "has_quiz",
   "quiz",
   "has_assignment",
@@ -77,7 +78,7 @@
   },
   {
    "default": "0",
-   "depends_on": "eval:doc.has_assignment==1 || doc.has_open_questions==1",
+   "depends_on": "eval:doc.has_assignment==1",
    "fieldname": "require_admin_approval",
    "fieldtype": "Check",
    "label": "Admin Tasdiqlashi Shart"
@@ -110,12 +111,17 @@
    "fieldtype": "Link",
    "label": "Open Question Set",
    "options": "LMS Open Question"
+  },
+  {
+   "fieldname": "lesson_description",
+   "fieldtype": "Small Text",
+   "label": "Lesson Description"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-11 07:46:16.746931",
+ "modified": "2026-03-29 19:22:59.907031",
  "modified_by": "Administrator",
  "module": "LMS for DBR",
  "name": "LMS Lesson",

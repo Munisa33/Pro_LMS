@@ -1,142 +1,185 @@
 {
-  "name": "LMS Builder Row",
-  "doctype": "DocType",
-  "module": "LMS for DBR",
-  "istable": 1,
-  "track_changes": 0,
-  "fields": [
-    {
-      "fieldname": "lesson_title",
-      "fieldtype": "Data",
-      "label": "Lesson Title",
-      "reqd": 1,
-      "in_list_view": 1,
-      "columns": 3,
-      "bold": 1
-    },
-    {
-      "fieldname": "section_title",
-      "fieldtype": "Data",
-      "label": "Section Title",
-      "in_list_view": 1,
-      "columns": 2
-    },
-    {
-      "fieldname": "video_url",
-      "fieldtype": "Data",
-      "label": "Video URL",
-      "in_list_view": 1,
-      "columns": 3
-    },
-    {
-      "fieldname": "video_duration_sec",
-      "fieldtype": "Int",
-      "label": "Duration (sec)",
-      "reqd": 1,
-      "in_list_view": 1,
-      "columns": 1
-    },
-    {
-      "fieldname": "minimum_watch_percent",
-      "fieldtype": "Float",
-      "label": "Min Watch %",
-      "default": "80",
-      "in_list_view": 1,
-      "columns": 1
-    },
-    {
-      "fieldname": "col_b1",
-      "fieldtype": "Column Break"
-    },
-    {
-      "fieldname": "has_quiz",
-      "fieldtype": "Check",
-      "label": "Has Quiz",
-      "in_list_view": 1,
-      "columns": 1
-    },
-    {
-      "fieldname": "quiz_title",
-      "fieldtype": "Data",
-      "label": "Quiz Title",
-      "depends_on": "eval:doc.has_quiz==1",
-      "mandatory_depends_on": "eval:doc.has_quiz==1"
-    },
-    {
-      "fieldname": "quiz_passing_score",
-      "fieldtype": "Float",
-      "label": "Quiz Pass %",
-      "default": "60",
-      "depends_on": "eval:doc.has_quiz==1"
-    },
-    {
-      "fieldname": "max_attempts",
-      "fieldtype": "Int",
-      "label": "Max Attempts",
-      "default": "3",
-      "depends_on": "eval:doc.has_quiz==1"
-    },
-    {
-      "fieldname": "col_b2",
-      "fieldtype": "Column Break"
-    },
-    {
-      "fieldname": "has_open_questions",
-      "fieldtype": "Check",
-      "label": "Has Open Q",
-      "in_list_view": 1,
-      "columns": 1
-    },
-    {
-      "fieldname": "oq_title",
-      "fieldtype": "Data",
-      "label": "Open Q Title",
-      "depends_on": "eval:doc.has_open_questions==1",
-      "mandatory_depends_on": "eval:doc.has_open_questions==1"
-    },
-    {
-      "fieldname": "open_q_passing_score",
-      "fieldtype": "Float",
-      "label": "Open Q Pass %",
-      "default": "60",
-      "depends_on": "eval:doc.has_open_questions==1"
-    },
-    {
-      "fieldname": "col_b3",
-      "fieldtype": "Column Break"
-    },
-    {
-      "fieldname": "has_assignment",
-      "fieldtype": "Check",
-      "label": "Has Assignment"
-    },
-    {
-      "fieldname": "assignment_type",
-      "fieldtype": "Select",
-      "label": "Topshiriq Turi",
-      "options": "\nFile Upload\nGoogle Sheets Link\nExcel Upload",
-      "depends_on": "eval:doc.has_assignment==1",
-      "mandatory_depends_on": "eval:doc.has_assignment==1"
-    },
-    {
-      "fieldname": "assignment_instruction",
-      "fieldtype": "Text",
-      "label": "Topshiriq Yo'riqnomasi",
-      "depends_on": "eval:doc.has_assignment==1",
-      "mandatory_depends_on": "eval:doc.has_assignment==1"
-    },
-    {
-      "default": "0",
-      "fieldname": "require_admin_approval",
-      "fieldtype": "Check",
-      "label": "Admin Tasdiqlashi Shart",
-      "depends_on": "eval:doc.has_assignment==1 || doc.has_open_questions==1",
-      "description": "Belgilansa, topshiriq va ochiq savollar uchun admin tekshirishi majburiy. Bo'sh qolsa, student javob/topshiriq yuborgandan so'ng admin kutmasdan keyingi darsga o'ta oladi."
-    },
-    {
-      "fieldname": "is_free_preview",
-      "fieldtype": "Check",
-      "label": "Free Preview"
-    }
-  ]
+ "actions": [],
+ "creation": "2026-03-29 17:12:55.149456",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "lesson_title",
+  "section_title",
+  "video_url",
+  "video_duration_sec",
+  "minimum_watch_percent",
+  "lesson_description",
+  "col_b1",
+  "has_quiz",
+  "quiz_title",
+  "quiz_passing_score",
+  "max_attempts",
+  "col_b2",
+  "has_open_questions",
+  "oq_title",
+  "open_q_passing_score",
+  "col_b3",
+  "has_assignment",
+  "assignment_type",
+  "assignment_instruction",
+  "require_admin_approval",
+  "is_free_preview"
+ ],
+ "fields": [
+  {
+   "bold": 1,
+   "columns": 3,
+   "fieldname": "lesson_title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Lesson Title",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "section_title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Section Title"
+  },
+  {
+   "columns": 3,
+   "fieldname": "video_url",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Video URL"
+  },
+  {
+   "columns": 1,
+   "fieldname": "video_duration_sec",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Duration (sec)",
+   "reqd": 1
+  },
+  {
+   "columns": 1,
+   "default": "80",
+   "fieldname": "minimum_watch_percent",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Min Watch %"
+  },
+  {
+   "fieldname": "col_b1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "columns": 1,
+   "default": "0",
+   "fieldname": "has_quiz",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Has Quiz"
+  },
+  {
+   "depends_on": "eval:doc.has_quiz==1",
+   "fieldname": "quiz_title",
+   "fieldtype": "Data",
+   "label": "Quiz Title",
+   "mandatory_depends_on": "eval:doc.has_quiz==1"
+  },
+  {
+   "default": "60",
+   "depends_on": "eval:doc.has_quiz==1",
+   "fieldname": "quiz_passing_score",
+   "fieldtype": "Float",
+   "label": "Quiz Pass %"
+  },
+  {
+   "default": "3",
+   "depends_on": "eval:doc.has_quiz==1",
+   "fieldname": "max_attempts",
+   "fieldtype": "Int",
+   "label": "Max Attempts"
+  },
+  {
+   "fieldname": "col_b2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "columns": 1,
+   "default": "0",
+   "fieldname": "has_open_questions",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Has Open Q"
+  },
+  {
+   "depends_on": "eval:doc.has_open_questions==1",
+   "fieldname": "oq_title",
+   "fieldtype": "Data",
+   "label": "Open Q Title",
+   "mandatory_depends_on": "eval:doc.has_open_questions==1"
+  },
+  {
+   "default": "60",
+   "depends_on": "eval:doc.has_open_questions==1",
+   "fieldname": "open_q_passing_score",
+   "fieldtype": "Float",
+   "label": "Open Q Pass %"
+  },
+  {
+   "fieldname": "col_b3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "has_assignment",
+   "fieldtype": "Check",
+   "label": "Has Assignment"
+  },
+  {
+   "depends_on": "eval:doc.has_assignment==1",
+   "fieldname": "assignment_type",
+   "fieldtype": "Select",
+   "label": "Topshiriq Turi",
+   "mandatory_depends_on": "eval:doc.has_assignment==1",
+   "options": "\nFile Upload\nGoogle Sheets Link\nExcel Upload"
+  },
+  {
+   "depends_on": "eval:doc.has_assignment==1",
+   "fieldname": "assignment_instruction",
+   "fieldtype": "Text",
+   "label": "Topshiriq Yo'riqnomasi",
+   "mandatory_depends_on": "eval:doc.has_assignment==1"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.has_assignment==1",
+   "description": "Belgilansa, student topshiriq topshirgandan keyin ham admin tasdiqlashini kutishi kerak. Bo'sh qolsa, student topshiriq yuborishi bilan keyingi darsga o'ta oladi.",
+   "fieldname": "require_admin_approval",
+   "fieldtype": "Check",
+   "label": "Admin Tasdiqlashi Shart"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_free_preview",
+   "fieldtype": "Check",
+   "label": "Free Preview"
+  },
+  {
+   "fieldname": "lesson_description",
+   "fieldtype": "Small Text",
+   "label": "Lesson Description"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-03-29 19:23:28.102743",
+ "modified_by": "Administrator",
+ "module": "LMS for DBR",
+ "name": "LMS Builder Row",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
 }
