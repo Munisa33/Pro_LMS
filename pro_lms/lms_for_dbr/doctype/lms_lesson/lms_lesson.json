@@ -15,6 +15,7 @@
   "has_assignment",
   "assignment_type",
   "assignment_instruction",
+  "require_admin_approval",
   "has_open_questions",
   "order_index",
   "is_free_preview",
@@ -73,6 +74,13 @@
    "fieldname": "assignment_instruction",
    "fieldtype": "Text Editor",
    "label": "Assignment Instruction"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.has_assignment==1 || doc.has_open_questions==1",
+   "fieldname": "require_admin_approval",
+   "fieldtype": "Check",
+   "label": "Admin Tasdiqlashi Shart"
   },
   {
    "fieldname": "order_index",

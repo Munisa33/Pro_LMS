@@ -37,11 +37,20 @@ def _is_lesson_sidebar_complete(lesson_node):
         return False
     if lesson_node.get("has_quiz") and not lesson_node.get("quiz_passed"):
         return False
-    # open_questions_graded is set during sidebar build
-    if lesson_node.get("has_open_questions") and not lesson_node.get("oq_graded"):
-        return False
-    if lesson_node.get("has_assignment") and not lesson_node.get("assignment_accepted"):
-        return False
+    if lesson_node.get("has_open_questions"):
+        if lesson_node.get("require_admin_approval"):
+            if not lesson_node.get("oq_graded"):
+                return False
+        else:
+            if not lesson_node.get("oq_all_answered"):
+                return False
+    if lesson_node.get("has_assignment"):
+        if lesson_node.get("require_admin_approval"):
+            if not lesson_node.get("assignment_accepted"):
+                return False
+        else:
+            if not lesson_node.get("assignment_submitted"):
+                return False
     return True
 
 
@@ -60,11 +69,17 @@ def _check_can_go_next(lesson_row, progress, quiz_best_map, oq_data, assignment_
     if lesson_row.get("has_open_questions") and oq_data:
         if not oq_data.get("all_answered"):
             return False, "open_questions_incomplete"
+        if lesson_row.get("require_admin_approval"):
+            if not oq_data.get("all_graded"):
+                return False, "open_questions_pending_review"
 
     if lesson_row.get("has_assignment") and assignment_data:
         sub = assignment_data.get("submission")
         if not sub or sub.get("status") == "Rejected":
             return False, "assignment_missing"
+        if lesson_row.get("require_admin_approval"):
+            if sub.get("status") not in ("Approved", "Reviewed"):
+                return False, "assignment_pending_review"
 
     return True, None
 
@@ -90,6 +105,7 @@ def get_player_data(lesson_name, enrollment_name):
             l.video_duration_sec, l.minimum_watch_percent,
             l.has_quiz, l.quiz AS quiz_id,
             l.has_assignment, l.assignment_type, l.assignment_instruction,
+            l.require_admin_approval,
             l.has_open_questions, l.open_question_set AS oq_set_id,
             l.order_index, l.is_free_preview, l.section AS section_id,
             c.name AS course_id, c.course_name, c.is_sequential,
@@ -117,7 +133,7 @@ def get_player_data(lesson_name, enrollment_name):
             l.video_duration_sec, l.order_index AS lesson_order,
             l.has_quiz, l.quiz AS quiz_id,
             l.has_open_questions, l.open_question_set AS oq_set_id,
-            l.has_assignment, l.is_free_preview
+            l.has_assignment, l.require_admin_approval, l.is_free_preview
         FROM `tabLMS Section` s
         INNER JOIN `tabLMS Lesson` l ON l.section = s.name
         WHERE s.course = %s
@@ -222,17 +238,21 @@ def get_player_data(lesson_name, enrollment_name):
         oq_agg_r = oq_graded_map.get(r.lesson_name) or {}
         sub_r = assign_map.get(r.lesson_name)
 
-        # Determine OQ graded status
+        # Determine OQ graded / answered status
         has_oq = bool(r.has_open_questions)
         oq_graded = False
+        oq_all_answered = False
         if has_oq and oq_agg_r:
             oq_graded = int(oq_agg_r.get("graded") or 0) > 0
+            oq_all_answered = int(oq_agg_r.get("answered") or 0) > 0
 
-        # Determine assignment accepted
+        # Determine assignment accepted / submitted
         has_assign = bool(r.has_assignment)
         assign_accepted = False
+        assign_submitted = False
         if has_assign and sub_r:
             assign_accepted = sub_r.status in ("Approved", "Reviewed")
+            assign_submitted = sub_r.status not in ("Rejected",)
 
         sections_map[sn]["lessons"].append({
             "lesson_name": r.lesson_name,
@@ -247,8 +267,11 @@ def get_player_data(lesson_name, enrollment_name):
             "quiz_passed": bool(best_qa and best_qa.passed),
             "has_open_questions": has_oq,
             "oq_graded": oq_graded,
+            "oq_all_answered": oq_all_answered,
             "has_assignment": has_assign,
+            "require_admin_approval": bool(r.require_admin_approval),
             "assignment_accepted": assign_accepted,
+            "assignment_submitted": assign_submitted,
             "is_free_preview": bool(r.is_free_preview),
         })
 
@@ -443,6 +466,7 @@ def get_player_data(lesson_name, enrollment_name):
             "quiz_id": row.quiz_id,
             "has_open_questions": row.has_open_questions,
             "has_assignment": row.has_assignment,
+            "require_admin_approval": row.require_admin_approval,
         },
         current_prog, quiz_best_map, oq_data, assignment_data
     )
@@ -489,6 +513,7 @@ def get_player_data(lesson_name, enrollment_name):
             "minimum_watch_percent": float(row.minimum_watch_percent or 80),
             "has_quiz": bool(row.has_quiz),
             "has_assignment": bool(row.has_assignment),
+            "require_admin_approval": bool(row.require_admin_approval),
             "assignment_type": row.assignment_type or "",
             "assignment_instruction": row.assignment_instruction or "",
             "has_open_questions": bool(row.has_open_questions),

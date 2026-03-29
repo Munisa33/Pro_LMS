@@ -126,6 +126,14 @@
       "mandatory_depends_on": "eval:doc.has_assignment==1"
     },
     {
+      "default": "0",
+      "fieldname": "require_admin_approval",
+      "fieldtype": "Check",
+      "label": "Admin Tasdiqlashi Shart",
+      "depends_on": "eval:doc.has_assignment==1 || doc.has_open_questions==1",
+      "description": "Belgilansa, topshiriq va ochiq savollar uchun admin tekshirishi majburiy. Bo'sh qolsa, student javob/topshiriq yuborgandan so'ng admin kutmasdan keyingi darsga o'ta oladi."
+    },
+    {
       "fieldname": "is_free_preview",
       "fieldtype": "Check",
       "label": "Free Preview"
