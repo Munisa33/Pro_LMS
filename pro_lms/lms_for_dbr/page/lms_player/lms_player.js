@@ -336,17 +336,17 @@ class LMSPlayer {
             $root.find("#lms-volume-slider").val(muted ? 0 : ve().volume);
         });
 
-        $root.on("click", "#lms-ctrl-speed", () => {
-            const $menu = $root.find("#lms-speed-menu");
-            $menu.toggle();
-        });
+        $root.off("click", "#lms-ctrl-speed").on("click", "#lms-ctrl-speed", (e) => {
+			e.stopPropagation(); // global $root handler-ga yetib bormasin
+			$root.find("#lms-speed-menu").toggle();
+		});
 
-        $root.on("click", ".lms-speed-opt", (e) => {
-            const speed = parseFloat($(e.currentTarget).data("speed"));
-            ve() && ve().setPlaybackRate(speed);
-            $root.find("#lms-ctrl-speed").text(speed + "x");
-            $root.find("#lms-speed-menu").hide();
-        });
+        $root.off("click", ".lms-speed-opt").on("click", ".lms-speed-opt", (e) => {
+			const speed = parseFloat($(e.currentTarget).data("speed"));
+			ve() && ve().setPlaybackRate(speed);
+			$root.find("#lms-ctrl-speed").text(speed + "x");
+			$root.find("#lms-speed-menu").hide();
+		});
 
         $root.on("click", "#lms-ctrl-fullscreen", () => {
             const container = document.getElementById("lms-video-container");
@@ -1160,29 +1160,33 @@ _close_floating_panel() {
         `);
     }
 
-    _navigate_to_lesson(lessonName) {
-        this._save_progress();
-        // Yangi dars uchun sessionStorage ni yangilaymiz (refresh xavfsizligi)
-        try {
-            sessionStorage.setItem(_SS_KEY, JSON.stringify({
-                lesson: lessonName,
-                enrollment: this.params.enrollment,
-            }));
-        } catch (_) {}
-        if (this.timeLogger) {
-            this.timeLogger.close("navigation", () => {
-                frappe.set_route("lms-player", {
-                    lesson: lessonName,
-                    enrollment: this.params.enrollment,
-                });
-            });
-        } else {
-            frappe.set_route("lms-player", {
-                lesson: lessonName,
-                enrollment: this.params.enrollment,
-            });
-        }
-    }
+	 _navigate_to_lesson(lessonName) {
+		this._save_progress();
+		const newParams = { lesson: lessonName, enrollment: this.params.enrollment };
+
+		const doNavigate = () => {
+			if (this._destroyed) return; // race condition guard
+
+			try {
+				sessionStorage.setItem(_SS_KEY, JSON.stringify(newParams));
+			} catch (_) {}
+
+			const wrapper = this.wrapper;
+
+			// Eski instance ni to'liq tozalaymiz
+			this.destroy();
+			wrapper.lms_player_instance = null;
+
+			// Frappe router bypass — to'g'ridan yangi instance
+			wrapper.lms_player_instance = new LMSPlayer(wrapper, newParams);
+		};
+
+		if (this.timeLogger) {
+			this.timeLogger.close("navigation", doNavigate);
+		} else {
+			doNavigate();
+		}
+	}
 
     _complete_course() {
         frappe.msgprint({
@@ -1279,11 +1283,16 @@ _close_floating_panel() {
         );
 
         // Speed menu outside click
-        $root.on("click", (e) => {
-            if (!$(e.target).closest("#lms-ctrl-speed").length) {
-                $root.find("#lms-speed-menu").hide();
-            }
-        });
+        // YANGI — document level, $root emas:
+		const speedOutsideHandler = (e) => {
+			if (!$(e.target).closest("#lms-ctrl-speed, #lms-speed-menu").length) {
+				this.$main.find("#lms-speed-menu").hide();
+			}
+		};
+		document.addEventListener("click", speedOutsideHandler);
+		this._allListeners.push(() =>
+			document.removeEventListener("click", speedOutsideHandler)
+		);
     }
 
     destroy() {
