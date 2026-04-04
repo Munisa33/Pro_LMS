@@ -9,6 +9,13 @@ frappe.pages["lms-player"].on_page_load = function (wrapper) {
         single_column: true,
     });
     localStorage.removeItem("_page:lms-player");
+
+    // Frappe "hide" eventini ushlash — on_page_hide chaqirish
+    $(wrapper).on("hide", function () {
+        if (wrapper.on_page_hide) {
+            wrapper.on_page_hide(wrapper);
+        }
+    });
 };
 
 const _SS_KEY = "lms_player_session";
@@ -311,7 +318,23 @@ class LMSPlayer {
         if (pct >= minWatch && !this._videoWatchMet) {
             this._videoWatchMet = true;
             this._refresh_nav();
+            this._unlock_content_tabs();
         }
+    }
+
+    _isVideoWatchMet() {
+        const minWatch = this.data.current_lesson.minimum_watch_percent || 80;
+        const currentPct = this.data.progress.completion_percent || 0;
+        return this._videoWatchMet || currentPct >= minWatch;
+    }
+
+    _unlock_content_tabs() {
+        this.$main.find(".lms-tab-btn.lms-tab-locked").each(function () {
+            const $btn = $(this);
+            $btn.removeClass("lms-tab-locked");
+            $btn.removeAttr("title");
+            $btn.find(".lms-tab-lock-icon").remove();
+        });
     }
 
     _bind_video_controls() {
@@ -497,17 +520,19 @@ class LMSPlayer {
     _render_tabs() {
     const lesson = this.data.current_lesson;
     const $content = this.$main.find("#lms-player-content");
+    const videoMet = this._isVideoWatchMet();
 
-    const tabs = [{ id: "tab-desc", label: "📋 Tavsif", always: true }];
-    if (lesson.has_quiz) tabs.push({ id: "tab-quiz", label: "📝 Quiz" });
-    if (lesson.has_open_questions) tabs.push({ id: "tab-oq", label: "❓ Ochiq savollar" });
-    if (lesson.has_assignment) tabs.push({ id: "tab-assign", label: "📎 Topshiriq" });
+    const tabs = [{ id: "tab-desc", label: "📋 Tavsif" }];
+    if (lesson.has_quiz) tabs.push({ id: "tab-quiz", label: "📝 Quiz", locked: !videoMet });
+    if (lesson.has_open_questions) tabs.push({ id: "tab-oq", label: "❓ Ochiq savollar", locked: !videoMet });
+    if (lesson.has_assignment) tabs.push({ id: "tab-assign", label: "📎 Topshiriq", locked: !videoMet });
 
+    const minWatch = lesson.minimum_watch_percent || 80;
     const tabsHtml = tabs
         .map(
             (t, i) =>
-                `<button class="lms-tab-btn${i === 0 ? " active" : ""}"
-                     data-tab="${t.id}">${t.label}</button>`
+                `<button class="lms-tab-btn${i === 0 ? " active" : ""}${t.locked ? " lms-tab-locked" : ""}"
+                     data-tab="${t.id}"${t.locked ? ` title="Videoni kamida ${minWatch}% ko'ring"` : ""}>${t.label}${t.locked ? '<span class="lms-tab-lock-icon"> 🔒</span>' : ""}</button>`
         )
         .join("");
 
@@ -522,6 +547,16 @@ class LMSPlayer {
 }
 
    _switch_tab(tabId) {
+    // Video yetarlicha ko'rilmaguncha quiz/oq/assign tablari qulflangan
+    if (tabId !== "tab-desc" && !this._isVideoWatchMet()) {
+        const minWatch = this.data.current_lesson.minimum_watch_percent || 80;
+        frappe.show_alert({
+            message: `Videoni kamida ${minWatch}% ko'ring`,
+            indicator: "orange",
+        }, 3);
+        return;
+    }
+
     this.$main.find(".lms-tab-btn").removeClass("active");
     this.$main.find(`.lms-tab-btn[data-tab="${tabId}"]`).addClass("active");
 
@@ -1053,7 +1088,7 @@ _close_floating_panel() {
         this.$main.find("#lms-inactivity-continue").off("click").on("click", () => {
             clearInterval(countdownInterval);
             $overlay.hide();
-            this.inactivityManager && this.inactivityManager.reset();
+            this.inactivityManager && this.inactivityManager.reset(true);
             if (this.videoEngine) this.videoEngine.play();
         });
 
@@ -1128,8 +1163,11 @@ _close_floating_panel() {
                     this._update_sidebar_lesson_status();
                 }
                 this._render_nav();
+                this._render_mobile_nav();
             })
-            .catch(() => {});
+            .catch((err) => {
+                console.error("check_completion_status xatolik:", err);
+            });
     }
 
     _update_sidebar_lesson_status() {
@@ -1142,7 +1180,7 @@ _close_floating_panel() {
     _block_reason_label(reason) {
         const map = {
             video_incomplete: "Videoni ko'ring",
-            quiz_not_passed: "Quizdan o'ting",
+            quiz_not_attempted: "Quizni topshiring",
             open_questions_incomplete: "Savollarni topshiring",
             assignment_missing: "Topshiriqni bajaring",
         };
@@ -1334,6 +1372,7 @@ class VideoEngine {
         this._pollInterval = null;
         this._playStartTime = null;
         this._playStartPos = null;
+        this._destroyed = false;
 
         this._init();
     }
@@ -1365,6 +1404,7 @@ class VideoEngine {
         this.embedEl.appendChild(container);
 
         _ensureYouTubeAPI().then(() => {
+            if (this._destroyed) return;
             this.ytPlayer = new YT.Player(container.id, {
                 videoId,
                 playerVars: {
@@ -1437,6 +1477,7 @@ class VideoEngine {
         this.embedEl.appendChild(iframe);
 
         _ensureVimeoAPI().then(() => {
+            if (this._destroyed) return;
             this.vimeoPlayer = new Vimeo.Player(iframe);
 
             // FIX 1b: Set volume explicitly after Vimeo player init
@@ -1645,12 +1686,28 @@ class VideoEngine {
     }
 
     destroy() {
+        this._destroyed = true;
         if (this._pollInterval) clearInterval(this._pollInterval);
-        if (this.ytPlayer && this.ytPlayer.destroy) this.ytPlayer.destroy();
-        if (this.vimeoPlayer && this.vimeoPlayer.destroy) this.vimeoPlayer.destroy();
+        // Avval pause, keyin destroy
+        if (this.ytPlayer) {
+            try { this.ytPlayer.stopVideo && this.ytPlayer.stopVideo(); } catch (_) {}
+            try { this.ytPlayer.destroy && this.ytPlayer.destroy(); } catch (_) {}
+            this.ytPlayer = null;
+        }
+        if (this.vimeoPlayer) {
+            try { this.vimeoPlayer.pause().catch(() => {}); } catch (_) {}
+            try { this.vimeoPlayer.destroy().catch(() => {}); } catch (_) {}
+            this.vimeoPlayer = null;
+        }
         if (this.htmlVideo) {
             this.htmlVideo.pause();
-            this.htmlVideo.src = "";
+            this.htmlVideo.removeAttribute("src");
+            this.htmlVideo.load();
+            this.htmlVideo = null;
+        }
+        // iframe va embed elementlarini DOMdan tozalash
+        if (this.embedEl) {
+            this.embedEl.innerHTML = "";
         }
     }
 }
@@ -2005,8 +2062,8 @@ class InactivityManager {
         }, this.warningAfterSec * 1000);
     }
 
-    reset() {
-        if (!this._warned && !this._paused) {
+    reset(force) {
+        if (force || (!this._warned && !this._paused)) {
             this._startTimer();
         }
     }

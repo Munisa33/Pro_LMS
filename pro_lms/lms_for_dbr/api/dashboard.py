@@ -12,6 +12,31 @@ def _get_employee():
     return employee
 
 
+def _is_dashboard_lesson_fully_done(lesson_node):
+    """Video ko'rilgan + quiz topshirilgan + OQ javoblari yozilgan + assignment yuborilgan.
+    Admin tekshiruvi talab qilinmaydi."""
+    if not lesson_node["progress"]["is_completed"]:
+        return False
+    # Quiz topshirilgan bo'lishi kerak (passed bo'lishi shart emas)
+    quiz = lesson_node.get("quiz")
+    if quiz:
+        best = quiz.get("best_attempt")
+        if not best or not best.get("submitted_at"):
+            return False
+    # Barcha ochiq savollarga javob yozilgan bo'lishi kerak
+    oq = lesson_node.get("open_questions")
+    if oq:
+        if (oq.get("answered") or 0) < (oq.get("total_questions") or 0):
+            return False
+    # Assignment yuborilgan bo'lishi kerak (rejected bo'lmagan)
+    assign = lesson_node.get("assignment")
+    if assign:
+        sub = assign.get("submission")
+        if not sub or sub.get("status") == "Rejected":
+            return False
+    return True
+
+
 @frappe.whitelist()
 def get_dashboard_data():
     """
@@ -372,17 +397,16 @@ def get_dashboard_data():
             )
             all_lessons_flat.extend(sec["lessons"])
 
-        # Sequential locking — tugallangan darslar HECH QACHON lock bo'lmaydi
+        # Sequential locking — video + quiz/OQ/assignment barchasi bajarilgan bo'lishi kerak
         is_seq = bool(enr.is_sequential)
         for i, lesson in enumerate(all_lessons_flat):
             if not is_seq or lesson["is_free_preview"]:
                 lesson["is_locked"] = False
                 continue
-            is_completed = lesson["progress"]["is_completed"]
-            if i == 0 or is_completed:
+            if i == 0 or _is_dashboard_lesson_fully_done(lesson):
                 lesson["is_locked"] = False
             else:
-                lesson["is_locked"] = not all_lessons_flat[i - 1]["progress"]["is_completed"]
+                lesson["is_locked"] = not _is_dashboard_lesson_fully_done(all_lessons_flat[i - 1])
 
         # Section-level progress + locking
         for i, sec in enumerate(sections):
@@ -396,7 +420,7 @@ def get_dashboard_data():
             else:
                 prev_sec = sections[i - 1]
                 sec["is_locked"] = not all(
-                    l["progress"]["is_completed"] for l in prev_sec["lessons"]
+                    _is_dashboard_lesson_fully_done(l) for l in prev_sec["lessons"]
                 )
 
         total_l = len(all_lessons_flat)

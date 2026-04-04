@@ -32,29 +32,24 @@ def _validate_enrollment(enrollment_name, employee=None):
 
 
 def _is_lesson_sidebar_complete(lesson_node):
-    """Check if a sidebar lesson is fully done for sequential unlocking."""
+    """Check if a sidebar lesson is fully done for sequential unlocking.
+    Quiz faqat topshirilishi (attempted) kerak, o'tishi (passed) shart emas.
+    Admin tekshiruvi kutilmaydi — topshirsa keyingi darsga o'tadi.
+    """
     if not lesson_node.get("is_completed"):
         return False
-    if lesson_node.get("has_quiz") and not lesson_node.get("quiz_passed"):
+    if lesson_node.get("has_quiz") and not lesson_node.get("quiz_attempted"):
         return False
-    if lesson_node.get("has_open_questions"):
-        if lesson_node.get("require_admin_approval"):
-            if not lesson_node.get("oq_graded"):
-                return False
-        else:
-            if not lesson_node.get("oq_all_answered"):
-                return False
-    if lesson_node.get("has_assignment"):
-        if lesson_node.get("require_admin_approval"):
-            if not lesson_node.get("assignment_accepted"):
-                return False
-        else:
-            if not lesson_node.get("assignment_submitted"):
-                return False
+    if lesson_node.get("has_open_questions") and not lesson_node.get("oq_all_answered"):
+        return False
+    if lesson_node.get("has_assignment") and not lesson_node.get("assignment_submitted"):
+        return False
     return True
 
 
-def _check_can_go_next(lesson_row, progress, quiz_best_map, oq_data, assignment_data):
+def _check_can_go_next(lesson_row, progress, quiz_all_attempts_map, oq_data, assignment_data):
+    """Quiz topshirilishi (attempted) kerak, o'tishi shart emas.
+    Admin tekshiruvi kutilmaydi — topshirsa keyingi darsga o'tadi."""
     min_watch = float(lesson_row.get("minimum_watch_percent") or 80)
     comp_pct = float((progress or {}).get("completion_percent") or 0)
 
@@ -62,24 +57,19 @@ def _check_can_go_next(lesson_row, progress, quiz_best_map, oq_data, assignment_
         return False, "video_incomplete"
 
     if lesson_row.get("has_quiz") and lesson_row.get("quiz_id"):
-        best = quiz_best_map.get(lesson_row["quiz_id"])
-        if not best or not best.passed:
-            return False, "quiz_not_passed"
+        attempts = quiz_all_attempts_map.get(lesson_row["quiz_id"], [])
+        submitted = any(a.submitted_at for a in attempts)
+        if not submitted:
+            return False, "quiz_not_attempted"
 
     if lesson_row.get("has_open_questions") and oq_data:
         if not oq_data.get("all_answered"):
             return False, "open_questions_incomplete"
-        if lesson_row.get("require_admin_approval"):
-            if not oq_data.get("all_graded"):
-                return False, "open_questions_pending_review"
 
     if lesson_row.get("has_assignment") and assignment_data:
         sub = assignment_data.get("submission")
         if not sub or sub.get("status") == "Rejected":
             return False, "assignment_missing"
-        if lesson_row.get("require_admin_approval"):
-            if sub.get("status") not in ("Approved", "Reviewed"):
-                return False, "assignment_pending_review"
 
     return True, None
 
@@ -236,6 +226,7 @@ def get_player_data(lesson_name, enrollment_name):
             }
         prog = progress_map.get(r.lesson_name) or {}
         best_qa = quiz_best_map.get(r.quiz_id) if r.quiz_id else None
+        quiz_attempts = quiz_all_attempts_map.get(r.quiz_id, []) if r.quiz_id else []
         oq_agg_r = oq_graded_map.get(r.lesson_name) or {}
         sub_r = assign_map.get(r.lesson_name)
 
@@ -266,6 +257,7 @@ def get_player_data(lesson_name, enrollment_name):
             "completion_percent": float(prog.get("completion_percent") or 0),
             "has_quiz": bool(r.has_quiz),
             "quiz_passed": bool(best_qa and best_qa.passed),
+            "quiz_attempted": bool(any(a.submitted_at for a in quiz_attempts)),
             "has_open_questions": has_oq,
             "oq_graded": oq_graded,
             "oq_all_answered": oq_all_answered,
@@ -468,9 +460,8 @@ def get_player_data(lesson_name, enrollment_name):
             "quiz_id": row.quiz_id,
             "has_open_questions": row.has_open_questions,
             "has_assignment": row.has_assignment,
-            "require_admin_approval": row.require_admin_approval,
         },
-        current_prog, quiz_best_map, oq_data, assignment_data
+        current_prog, quiz_all_attempts_map, oq_data, assignment_data
     )
 
     navigation = {
@@ -1016,12 +1007,13 @@ def check_completion_status(lesson_name, enrollment_name):
         blocked.append("video_incomplete")
 
     if lesson.has_quiz and lesson.quiz:
-        passed = frappe.db.get_value(
-            "LMS Quiz Attempt",
-            {"employee": employee, "quiz": lesson.quiz, "passed": 1}, "name"
-        )
-        if not passed:
-            blocked.append("quiz_not_passed")
+        submitted = frappe.db.sql("""
+            SELECT name FROM `tabLMS Quiz Attempt`
+            WHERE employee = %s AND quiz = %s AND submitted_at IS NOT NULL
+            LIMIT 1
+        """, (employee, lesson.quiz))
+        if not submitted:
+            blocked.append("quiz_not_attempted")
 
     if lesson.has_open_questions and lesson.open_question_set:
         oq_set = frappe.get_doc("LMS Open Question", lesson.open_question_set)

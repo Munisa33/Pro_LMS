@@ -366,6 +366,13 @@
 
 .lms-tab-btn:hover { color: var(--text-color); }
 .lms-tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+.lms-tab-btn.lms-tab-locked {
+    color: var(--lms-locked);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+.lms-tab-btn.lms-tab-locked:hover { color: var(--lms-locked); }
+.lms-tab-lock-icon { font-size: 0.75em; }
 
 .lms-tab-content { padding: 20px 24px 80px; }
 
