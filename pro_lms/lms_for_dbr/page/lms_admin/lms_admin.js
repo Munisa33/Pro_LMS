@@ -4,6 +4,7 @@
 //    1. Full-width: aggressive Frappe layout override on page load
 //    2. Dark mode: toggle button synced with Frappe's html[data-theme]
 //    3. Bulk bar: only shown when items are SELECTED (not when data exists)
+//    4. GitHub-style heatmap added to employee profile tab
 // ═══════════════════════════════════════════════════════════════════════════
 
 frappe.pages['lms_admin'].on_page_load = function (wrapper) {
@@ -13,16 +14,12 @@ frappe.pages['lms_admin'].on_page_load = function (wrapper) {
 		single_column: true
 	});
 
-	// ── FIX 1: Force full-width immediately on page load ──────────────────
 	_forceFullWidth();
-
 	window.lms_admin = new LMSAdmin(wrapper);
 };
 
 frappe.pages['lms_admin'].on_page_show = function () {
-	// Re-apply full-width in case Frappe re-renders layout on show
 	_forceFullWidth();
-
 	if (window.lms_admin) {
 		window.lms_admin._kpiInterval = setInterval(
 			() => window.lms_admin._loadKPI(), 30000
@@ -50,8 +47,8 @@ function _forceFullWidth() {
 	];
 	selectors.forEach(sel => {
 		document.querySelectorAll(sel).forEach(el => {
-			el.style.maxWidth  = '100%';
-			el.style.width     = '100%';
+			el.style.maxWidth     = '100%';
+			el.style.width        = '100%';
 			el.style.paddingLeft  = '0';
 			el.style.paddingRight = '0';
 			el.style.marginLeft   = '0';
@@ -68,24 +65,16 @@ function _getCurrentTheme() {
 }
 
 function _setTheme(theme) {
-	// Set on html element — Frappe standard
 	document.documentElement.setAttribute('data-theme', theme);
 	document.documentElement.setAttribute('data-bs-theme', theme);
-	// Persist user preference
 	localStorage.setItem('lms_admin_theme', theme);
 }
 
 function _initTheme() {
-	// Priority: 1) Frappe's current setting, 2) localStorage, 3) system preference
 	const frappeCurrent = _getCurrentTheme();
-	if (frappeCurrent && frappeCurrent !== 'light') return; // Frappe already set dark
-
+	if (frappeCurrent && frappeCurrent !== 'light') return;
 	const saved = localStorage.getItem('lms_admin_theme');
-	if (saved) {
-		_setTheme(saved);
-		return;
-	}
-	// System preference
+	if (saved) { _setTheme(saved); return; }
 	if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
 		_setTheme('dark');
 	}
@@ -118,7 +107,6 @@ class LMSAdmin {
 		const wrap = document.createElement('div');
 		wrap.className = 'lms-admin-wrap';
 
-		// ── Dark mode toggle button ────────────────────────────────────────
 		const topBar = document.createElement('div');
 		topBar.style.cssText = 'display:flex;justify-content:flex-end;margin-bottom:12px;gap:8px;align-items:center;';
 
@@ -135,9 +123,7 @@ class LMSAdmin {
 			const next    = current === 'dark' ? 'light' : 'dark';
 			_setTheme(next);
 			themeBtn.textContent = next === 'dark' ? '☀️' : '🌙';
-			// Redraw SVG chart if profile is active (colors change)
 			if (this.activeTab === 'profile' && this._currentProfileEmployee) {
-				// Chart is inside profile body — re-render chart only
 				const chartEl = document.getElementById('lms-monthly-chart');
 				if (chartEl && this._lastTimeAnalytics) {
 					this._renderTimeChart(this._lastTimeAnalytics, 'lms-monthly-chart');
@@ -148,7 +134,6 @@ class LMSAdmin {
 		topBar.appendChild(themeBtn);
 		wrap.appendChild(topBar);
 
-		// ── KPI skeleton ───────────────────────────────────────────────────
 		const kpiGrid = document.createElement('div');
 		kpiGrid.className = 'lms-kpi-grid';
 		kpiGrid.id = 'lms-kpi-grid';
@@ -160,24 +145,20 @@ class LMSAdmin {
 			kpiGrid.appendChild(card);
 		}
 
-		// ── Tabs ───────────────────────────────────────────────────────────
 		const tabs = document.createElement('div');
 		tabs.className = 'lms-tabs';
 		tabs.innerHTML =
 			'<button class="lms-tab-btn active" data-tab="assignments">📋 Topshiriqlar</button>'
+			+ '<button class="lms-tab-btn" data-tab="open_answers">✍️ Ochiq Savollar</button>'
 			+ '<button class="lms-tab-btn" data-tab="progress">📊 Hodimlar Progressi</button>'
-			+ '<button class="lms-tab-btn" data-tab="profile">👤 Hodim Profili</button>'
-			+ '<button class="lms-tab-btn" data-tab="open_answers">✍️ Ochiq Savollar</button>';
+			+ '<button class="lms-tab-btn" data-tab="profile">👤 Hodim Profili</button>';
 
-		// ── Filter bar ────────────────────────────────────────────────────
 		const filterBar = document.createElement('div');
 		filterBar.className = 'lms-filter-bar';
 		filterBar.id = 'lms-filter-bar';
 
-		// ── FIX 3: Bulk bar — hidden by default, only shown when selectedIds > 0
 		const bulkBar = document.createElement('div');
 		bulkBar.id = 'lms-bulk-bar';
-		// Do NOT use style.display here — CSS handles initial display:none
 		bulkBar.innerHTML =
 			'<span id="lms-bulk-count" style="font-size:13px;font-weight:600;color:var(--lms-text-primary);">0 ta tanlandi</span>'
 			+ '<button class="lms-btn lms-btn-bulk lms-btn-sm" id="lms-bulk-approve-btn">✔ Ommaviy tasdiqlash</button>'
@@ -199,8 +180,6 @@ class LMSAdmin {
 		wrap.appendChild(pagination);
 
 		$(this.wrapper).find('.layout-main-section').empty().append(wrap);
-
-		// Re-apply full-width after DOM insertion
 		_forceFullWidth();
 
 		window.lms_admin = this;
@@ -418,8 +397,6 @@ class LMSAdmin {
 	}
 
 	_renderAssignments(data, total) {
-		// ── FIX 3: bulk bar is NEVER shown here — only _updateBulkBar controls it
-		// Hide it on fresh render since selection is cleared
 		document.getElementById('lms-bulk-bar').style.display = 'none';
 
 		if (!data.length) {
@@ -507,11 +484,9 @@ class LMSAdmin {
 
 		document.getElementById('lms-select-all')
 			?.addEventListener('change', (e) => this.selectAll(e.target.checked));
-
 		document.querySelectorAll('input[data-sub-id]').forEach(cb => {
 			cb.addEventListener('change', (e) => this.toggleSelect(cb.dataset.subId, e.target.checked));
 		});
-
 		document.querySelectorAll('button[data-action]').forEach(btn => {
 			btn.addEventListener('click', () => {
 				this.review(btn.dataset.subId, btn.dataset.action === 'approve' ? 'Approved' : 'Rejected');
@@ -524,7 +499,6 @@ class LMSAdmin {
 	review(submission_id, status) {
 		const score    = document.getElementById(`score-${submission_id}`)?.value || 0;
 		const feedback = document.getElementById(`fb-${submission_id}`)?.value || '';
-
 		frappe.call({
 			method: 'pro_lms.lms_for_dbr.page.lms_admin.lms_admin.review_assignment_admin',
 			args:   { submission_id, status, score, feedback },
@@ -555,9 +529,8 @@ class LMSAdmin {
 	_updateBulkBar() {
 		const bar   = document.getElementById('lms-bulk-bar');
 		const count = document.getElementById('lms-bulk-count');
-		// ── FIX 3: ONLY show bulk bar when items are actually selected
-		bar.style.display  = this.selectedIds.size > 0 ? 'flex' : 'none';
-		count.textContent  = `${this.selectedIds.size} ta tanlandi`;
+		bar.style.display = this.selectedIds.size > 0 ? 'flex' : 'none';
+		count.textContent = `${this.selectedIds.size} ta tanlandi`;
 	}
 
 	clearSelection() {
@@ -701,9 +674,6 @@ class LMSAdmin {
 		});
 		ctrl.refresh();
 
-		// Frappe Link control — 'change' ishlamaydi, to'g'ri eventlar:
-		// 1) awesomplete-selectcomplete  — dropdown dan tanlanganda
-		// 2) blur                        — manual yozib Enter/tab bosganda
 		const _tryLoad = () => {
 			setTimeout(() => {
 				const val = ctrl.get_value();
@@ -760,13 +730,12 @@ class LMSAdmin {
 	_renderProfile(data, employee) {
 		const { employee_info: ei, summary: sm, courses, quiz_details, time_analytics: ta } = data;
 		this._currentProfileEmployee = employee;
-		// Cache for theme toggle re-render
 		this._lastTimeAnalytics = ta.monthly;
 
-		const imgSrc  = ei.image ? frappe.utils.escape_html(ei.image) : '/assets/frappe/images/default-avatar.png';
-		const eName   = frappe.utils.escape_html(ei.employee_name || ei.name);
-		const eDept   = frappe.utils.escape_html(ei.department || '');
-		const eDesig  = frappe.utils.escape_html(ei.designation || '');
+		const imgSrc = ei.image ? frappe.utils.escape_html(ei.image) : '/assets/frappe/images/default-avatar.png';
+		const eName  = frappe.utils.escape_html(ei.employee_name || ei.name);
+		const eDept  = frappe.utils.escape_html(ei.department || '');
+		const eDesig = frappe.utils.escape_html(ei.designation || '');
 
 		const headerHtml = `
 			<div class="lms-profile-header">
@@ -780,22 +749,49 @@ class LMSAdmin {
 			</div>`;
 
 		const summaryCards =
-			this._summaryCard('Kurslar',            sm.completed_courses + '/' + sm.total_courses) +
-			this._summaryCard('Tomosha vaqti',      sm.total_watch_hours + 's',   'green') +
-			this._summaryCard('O&#39;rtacha quiz',  sm.avg_quiz_score + '%',      'purple') +
-			this._summaryCard('Tasdiqlangan',       sm.approved_assignments + '/' + sm.total_assignments, 'green') +
-			this._summaryCard('Kutmoqda (topshiriq)', sm.pending_assignments,      sm.pending_assignments > 0 ? 'orange' : '') +
-			this._summaryCard('Sertifikatlar',      sm.certificates_count);
+			this._summaryCard('Kurslar',              sm.completed_courses + '/' + sm.total_courses) +
+			this._summaryCard('Tomosha vaqti',        sm.total_watch_hours + 's',    'green') +
+			this._summaryCard('O&#39;rtacha quiz',    sm.avg_quiz_score + '%',       'purple') +
+			this._summaryCard('Tasdiqlangan',         sm.approved_assignments + '/' + sm.total_assignments, 'green') +
+			this._summaryCard('Kutmoqda (topshiriq)', sm.pending_assignments,        sm.pending_assignments > 0 ? 'orange' : '') +
+			this._summaryCard('Sertifikatlar',        sm.certificates_count);
 
 		const summaryHtml = `<div class="lms-kpi-grid" style="margin-bottom:24px;">${summaryCards}</div>`;
 
+		// ── Streak cards ──────────────────────────────────────────────────
+		const streakHtml = (ta.current_streak > 0 || ta.longest_streak > 0) ? `
+			<div class="lms-hm-streak-row">
+				<div class="lms-hm-streak-card">
+					<span class="lms-hm-streak-icon">🔥</span>
+					<div>
+						<div class="lms-hm-streak-val">${ta.current_streak}</div>
+						<div class="lms-hm-streak-label">Joriy streak (kun)</div>
+					</div>
+				</div>
+				<div class="lms-hm-streak-card">
+					<span class="lms-hm-streak-icon">🏆</span>
+					<div>
+						<div class="lms-hm-streak-val">${ta.longest_streak}</div>
+						<div class="lms-hm-streak-label">Eng uzun streak</div>
+					</div>
+				</div>
+			</div>` : '';
+
+		// ── Heatmap + chart sections ──────────────────────────────────────
 		const chartHtml = `
-			<div class="lms-section-title">📈 Vaqt analitikasi
+			<div class="lms-section-title">
+				📊 Faollik haritasi (365 kun)
 				<span class="lms-source-tag">${frappe.utils.escape_html(ta.data_source)}</span>
+				<span class="lms-source-tag lms-hm-total-tag" id="lms-heatmap-total-label"></span>
+			</div>
+			${streakHtml}
+			<div class="lms-heatmap-wrap" id="lms-heatmap-wrap"></div>
+			<div class="lms-section-title" style="margin-top:24px;">
+				📈 Oylik vaqt (soat)
 			</div>
 			<div class="lms-chart-wrap" id="lms-monthly-chart"></div>`;
 
-		const coursesHtml = this._renderCoursesAccordion(courses, quiz_details);
+		const coursesHtml  = this._renderCoursesAccordion(courses, quiz_details);
 
 		const allAssignments = [];
 		(courses || []).forEach(c => {
@@ -811,10 +807,165 @@ class LMSAdmin {
 			headerHtml + summaryHtml + chartHtml + coursesHtml + auditHtml
 			+ '<div id="lms-profile-oa"></div>';
 
+		// ── Render charts ─────────────────────────────────────────────────
+		this._renderHeatmap(ta.heatmap, 'lms-heatmap-wrap');
 		this._renderTimeChart(ta.monthly, 'lms-monthly-chart');
 		this._loadProfileOA(employee);
 	}
 
+	// ═════════════════════════════════════════════════════════════════════
+	//  GITHUB-STYLE HEATMAP
+	// ═════════════════════════════════════════════════════════════════════
+	_renderHeatmap(heatmapData, containerId) {
+		const container = document.getElementById(containerId);
+		if (!container) return;
+		if (!heatmapData || !heatmapData.length) {
+			container.innerHTML = '<div class="lms-empty" style="padding:20px;">Faollik ma\'lumoti yo\'q.</div>';
+			return;
+		}
+
+		// Rang darajalari (daqiqaga qarab)
+		const _level = (min) => {
+			if (min <= 0)   return 'lms-hm-0';
+			if (min <= 15)  return 'lms-hm-1';
+			if (min <= 45)  return 'lms-hm-2';
+			if (min <= 120) return 'lms-hm-3';
+			return 'lms-hm-4';
+		};
+
+		// Data lookup
+		const byDate = {};
+		heatmapData.forEach(d => { byDate[d.date] = d; });
+
+		// Grid hisoblash
+		const today = new Date();
+		today.setHours(0, 0, 0, 0);
+		const startDate = new Date(today);
+		startDate.setDate(today.getDate() - 364);
+
+		// Dushanbadan boshlash uchun offset
+		const firstDow     = startDate.getDay();
+		const mondayOffset = (firstDow === 0 ? 6 : firstDow - 1);
+		const gridStart    = new Date(startDate);
+		gridStart.setDate(startDate.getDate() - mondayOffset);
+
+		// Haftalarga ajratish
+		const weeks = [];
+		let week   = new Array(7).fill(null);
+		const cur  = new Date(gridStart);
+
+		while (cur <= today) {
+			const dow       = cur.getDay();
+			const weekDay   = (dow === 0 ? 6 : dow - 1); // 0=Du, 6=Ya
+			const dateStr   = cur.toISOString().slice(0, 10);
+			const inRange   = cur >= startDate && cur <= today;
+			week[weekDay]   = inRange ? { date: dateStr, minutes: (byDate[dateStr]?.minutes || 0) } : null;
+			if (weekDay === 6) { weeks.push([...week]); week = new Array(7).fill(null); }
+			cur.setDate(cur.getDate() + 1);
+		}
+		if (week.some(x => x !== null)) weeks.push(week);
+
+		// Oy yorliqlari
+		const MO_NAMES = ['Yan','Fev','Mar','Apr','May','Iyn','Iyl','Avg','Sen','Okt','Noy','Dek'];
+		const monthLabels = [];
+		let lastMonth = -1;
+		weeks.forEach((w, wi) => {
+			const first = w.find(d => d !== null);
+			if (!first) return;
+			const mo = new Date(first.date).getMonth();
+			if (mo !== lastMonth) { monthLabels.push({ wi, label: MO_NAMES[mo] }); lastMonth = mo; }
+		});
+
+		// Statistika
+		const totalMin  = Object.values(byDate).reduce((s, d) => s + (d.minutes || 0), 0);
+		const activeDays = Object.values(byDate).filter(d => d.minutes > 0).length;
+		const totalEl   = document.getElementById('lms-heatmap-total-label');
+		if (totalEl) totalEl.textContent = `${Math.round(totalMin / 60)} soat · ${activeDays} faol kun`;
+
+		// SVG o'lchamlari
+		const CELL     = 13;
+		const GAP      = 3;
+		const STEP     = CELL + GAP;
+		const LEFT_PAD = 28;
+		const TOP_PAD  = 22;
+		const DOW_LBL  = ['Du', '', 'Ch', '', 'Ju', '', ''];
+		const totalW   = LEFT_PAD + weeks.length * STEP + 4;
+		const totalH   = TOP_PAD + 7 * STEP + 2;
+
+		let svg = `<svg viewBox="0 0 ${totalW} ${totalH}" width="100%" preserveAspectRatio="xMinYMid meet" xmlns="http://www.w3.org/2000/svg">`;
+
+		// Oy yorliqlari
+		monthLabels.forEach(({ wi, label }) => {
+			const x = LEFT_PAD + wi * STEP;
+			svg += `<text x="${x}" y="${TOP_PAD - 6}" font-size="10" class="lms-hm-month-label">${label}</text>`;
+		});
+
+		// Kun yorliqlari
+		DOW_LBL.forEach((lbl, i) => {
+			if (!lbl) return;
+			const y = TOP_PAD + i * STEP + CELL - 1;
+			svg += `<text x="${LEFT_PAD - 5}" y="${y}" font-size="10" text-anchor="end" class="lms-hm-dow-label">${lbl}</text>`;
+		});
+
+		// Katak'lar
+		weeks.forEach((w, wi) => {
+			w.forEach((day, di) => {
+				if (day === null) return;
+				const x   = LEFT_PAD + wi * STEP;
+				const y   = TOP_PAD + di * STEP;
+				const lvl = _level(day.minutes);
+				svg += `<rect x="${x}" y="${y}" width="${CELL}" height="${CELL}" rx="2" ry="2"
+					class="lms-hm-cell ${lvl}"
+					data-date="${day.date}" data-min="${day.minutes}"><title>${day.date}: ${day.minutes > 0 ? Math.round(day.minutes) + ' daq' : 'faollik yo\'q'}</title></rect>`;
+			});
+		});
+
+		svg += '</svg>';
+
+		// Legend
+		const legend = `
+			<div class="lms-hm-legend">
+				<span class="lms-hm-legend-label">Kam</span>
+				${[0,1,2,3,4].map(i => `<span class="lms-hm-cell lms-hm-${i}" style="display:inline-block;width:13px;height:13px;border-radius:2px;"></span>`).join('')}
+				<span class="lms-hm-legend-label">Ko'p</span>
+			</div>`;
+
+		container.innerHTML = svg + legend;
+
+		// Custom tooltip
+		if (container._tooltipEl) {
+			container._tooltipEl.remove();
+		}
+		const tooltip = document.createElement('div');
+		tooltip.className = 'lms-hm-tooltip';
+		document.body.appendChild(tooltip);
+		container._tooltipEl = tooltip;
+
+		container.querySelectorAll('.lms-hm-cell[data-date]').forEach(cell => {
+			cell.style.cursor = 'default';
+			cell.addEventListener('mouseenter', () => {
+				const min    = parseFloat(cell.dataset.min || 0);
+				const date   = cell.dataset.date;
+				const d      = new Date(date);
+				const dayLbl = ['Yak','Du','Se','Ch','Pa','Ju','Sha'][d.getDay()];
+				tooltip.innerHTML = min > 0
+					? `<strong>${dayLbl}, ${date}</strong><br>${Math.round(min)} daqiqa &nbsp;·&nbsp; ${(min/60).toFixed(1)} soat`
+					: `<strong>${dayLbl}, ${date}</strong><br><span style="color:var(--lms-text-muted)">Faollik yo'q</span>`;
+				tooltip.style.display = 'block';
+			});
+			cell.addEventListener('mousemove', e => {
+				tooltip.style.left = (e.clientX + 14) + 'px';
+				tooltip.style.top  = (e.clientY - 42) + 'px';
+			});
+			cell.addEventListener('mouseleave', () => {
+				tooltip.style.display = 'none';
+			});
+		});
+	}
+
+	// ═════════════════════════════════════════════════════════════════════
+	//  COURSES ACCORDION
+	// ═════════════════════════════════════════════════════════════════════
 	_renderCoursesAccordion(courses, quiz_details) {
 		if (!courses || !courses.length) return '<div class="lms-empty">Kurslar topilmadi.</div>';
 
@@ -973,7 +1124,7 @@ class LMSAdmin {
 			</div>`;
 	}
 
-	// ── Profile: Ochiq savollar (lazy) ───────────────────────────────────
+	// ── Profile: Ochiq savollar ──────────────────────────────────────────
 	_loadProfileOA(employee) {
 		const container = document.getElementById('lms-profile-oa');
 		if (!container) return;
@@ -1113,7 +1264,7 @@ class LMSAdmin {
 	}
 
 	// ═════════════════════════════════════════════════════════════════════
-	//  TAB 4 — OCHIQ SAVOLLAR (global view)
+	//  TAB 4 — OCHIQ SAVOLLAR (global)
 	// ═════════════════════════════════════════════════════════════════════
 	_loadOpenAnswers() {
 		this._setLoading();
@@ -1193,7 +1344,6 @@ class LMSAdmin {
 		});
 
 		document.getElementById('lms-content').innerHTML = headerHtml + cardsHtml;
-
 		this._bindOAStatusTabs();
 		this._bindOAGradeButtons();
 		this._renderPagination(total, 'open_answers');
@@ -1208,13 +1358,11 @@ class LMSAdmin {
 			? '<span class="lms-badge lms-badge-pending">⏳ Baholanmagan</span>'
 			: `<span class="lms-badge lms-badge-approved">✅ Baholandi — ${row.score}/${row.marks} ball</span>`;
 
-		// ── FIX: correct_answer check — treat empty string as falsy
 		const correctHtml = (row.question_type === 'Auto' && row.correct_answer && row.correct_answer.trim())
 			? `<div class="lms-oa-correct">
 				<span class="lms-oa-label">✅ To'g'ri javob:</span>
 				<span class="lms-oa-correct-text">${frappe.utils.escape_html(row.correct_answer)}</span>
-			   </div>`
-			: '';
+			   </div>` : '';
 
 		const gradedHtml = isGraded ? `
 			<div class="lms-oa-review-block">
@@ -1255,8 +1403,7 @@ class LMSAdmin {
 			</div>` : '';
 
 		return `
-			<div class="lms-oa-card ${isPending ? 'lms-oa-card-pending' : 'lms-oa-card-graded'}"
-				data-oa-id="${eid}">
+			<div class="lms-oa-card ${isPending ? 'lms-oa-card-pending' : 'lms-oa-card-graded'}" data-oa-id="${eid}">
 				<div class="lms-oa-card-top">
 					<div class="lms-oa-meta">
 						<span class="lms-oa-course">${frappe.utils.escape_html(row.course_name)}</span>
@@ -1276,9 +1423,7 @@ class LMSAdmin {
 					<div class="lms-oa-label">✏️ Hodim javobi:</div>
 					<div class="lms-oa-answer-text">${frappe.utils.escape_html(row.answer_text || '—')}</div>
 				</div>
-				${correctHtml}
-				${gradedHtml}
-				${gradingForm}
+				${correctHtml}${gradedHtml}${gradingForm}
 			</div>`;
 	}
 
@@ -1301,12 +1446,10 @@ class LMSAdmin {
 				const fb    = document.getElementById(`oa-fb-${id}`)?.value || '';
 
 				if (isNaN(score) || score < 0) {
-					frappe.show_alert({ message: 'Ball kiriting (0 dan katta)', indicator: 'red' }, 3);
-					return;
+					frappe.show_alert({ message: 'Ball kiriting (0 dan katta)', indicator: 'red' }, 3); return;
 				}
 				if (score > marks) {
-					frappe.show_alert({ message: `Ball ${marks} dan oshmasligi kerak`, indicator: 'red' }, 3);
-					return;
+					frappe.show_alert({ message: `Ball ${marks} dan oshmasligi kerak`, indicator: 'red' }, 3); return;
 				}
 				btn.disabled    = true;
 				btn.textContent = '⏳ Saqlanmoqda...';
@@ -1347,64 +1490,213 @@ class LMSAdmin {
 	}
 
 	// ── SVG Time Chart ───────────────────────────────────────────────────
-	// FIX: reads CSS variables AFTER theme change for correct colors
-	_renderTimeChart(monthlyData, containerId) {
-		const container = document.getElementById(containerId);
-		if (!container) return;
-		if (!monthlyData || !monthlyData.length) {
-			container.innerHTML = '<div class="lms-empty">Vaqt ma\'lumoti yo\'q.</div>';
-			return;
-		}
 
-		// Read resolved CSS variable values (dark mode aware)
-		const cs          = getComputedStyle(document.documentElement);
-		const accentColor = cs.getPropertyValue('--lms-accent').trim()      || '#4361EE';
-		const mutedColor  = cs.getPropertyValue('--lms-text-muted').trim()  || '#8F97B0';
-		const borderColor = cs.getPropertyValue('--lms-border').trim()      || '#E2E6F0';
-		const surfaceColor= cs.getPropertyValue('--lms-surface-2').trim()   || '#F8F9FC';
+	// ═══════════════════════════════════════════════════════════════════════════
+//  REPLACEMENT: _renderTimeChart()
+//  lms_admin.js ichida mavjud _renderTimeChart() metodini shu bilan almashtiring
+//  Chart.js + datalabels plugin — dynamic CDN load
+// ═══════════════════════════════════════════════════════════════════════════
 
-		const W = 600, H = 200, padL = 42, padB = 40, padT = 12, padR = 12;
-		const chartW   = W - padL - padR;
-		const chartH   = H - padT - padB;
-		const maxHours = Math.max(...monthlyData.map(d => parseFloat(d.hours) || 0), 0.1);
-		const barCount = monthlyData.length;
-		const barSlot  = chartW / barCount;
-		const barW     = barSlot * 0.65;
+_renderTimeChart(monthlyData, containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    if (!monthlyData || !monthlyData.length) {
+        container.innerHTML = '<div class="lms-empty">Vaqt ma\'lumoti yo\'q.</div>';
+        return;
+    }
 
-		let bars = '', xLabels = '', grid = '';
+    const MO_NAMES = ['Yan','Fev','Mar','Apr','May','Iyn','Iyl','Avg','Sen','Okt','Noy','Dek'];
+    const labels  = monthlyData.map(d => MO_NAMES[parseInt(d.month.slice(5)) - 1] || d.month.slice(5));
+    const values  = monthlyData.map(d => parseFloat(d.hours) || 0);
+    const maxH    = Math.max(...values, 0.01);
+    const avgH    = values.reduce((a, b) => a + b, 0) / (values.length || 1);
+    const totalH  = values.reduce((a, b) => a + b, 0);
+    const activeM = values.filter(v => v > 0).length;
+    const maxIdx  = values.indexOf(maxH);
 
-		monthlyData.forEach((d, i) => {
-			const hrs    = parseFloat(d.hours) || 0;
-			const bH     = (hrs / maxHours) * chartH;
-			const x      = padL + i * barSlot + (barSlot - barW) / 2;
-			const y      = padT + chartH - bH;
-			const mo     = frappe.utils.escape_html(String(d.month || '').slice(5));
-			const labelX = padL + i * barSlot + barSlot / 2;
+    // ── Stat cards ────────────────────────────────────────────────────────
+    const statsHtml = `
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;">
+            <div class="lms-chart-stat-card">
+                <div class="lms-chart-stat-label">Jami vaqt</div>
+                <div class="lms-chart-stat-value">${totalH.toFixed(1)}<span class="lms-chart-stat-unit">s</span></div>
+                <div class="lms-chart-stat-sub">12 oyda</div>
+            </div>
+            <div class="lms-chart-stat-card lms-chart-stat-accent">
+                <div class="lms-chart-stat-label">Eng faol oy</div>
+                <div class="lms-chart-stat-value">${labels[maxIdx] || '—'}</div>
+                <div class="lms-chart-stat-sub">${maxH.toFixed(1)} soat</div>
+            </div>
+            <div class="lms-chart-stat-card">
+                <div class="lms-chart-stat-label">O&#39;rtacha</div>
+                <div class="lms-chart-stat-value">${avgH.toFixed(1)}<span class="lms-chart-stat-unit">s</span></div>
+                <div class="lms-chart-stat-sub">oyiga</div>
+            </div>
+            <div class="lms-chart-stat-card">
+                <div class="lms-chart-stat-label">Faol oylar</div>
+                <div class="lms-chart-stat-value">${activeM}<span class="lms-chart-stat-unit"> oy</span></div>
+                <div class="lms-chart-stat-sub">12 oydan</div>
+            </div>
+        </div>`;
 
-			bars    += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(bH,2).toFixed(1)}"
-				fill="${accentColor}" rx="3" opacity="0.85">
-				<title>${frappe.utils.escape_html(d.month)}: ${hrs}s</title></rect>`;
-			xLabels += `<text x="${labelX.toFixed(1)}" y="${(H-padB+14).toFixed(1)}" text-anchor="middle" font-size="10" fill="${mutedColor}">${mo}</text>`;
-		});
+    const chartId = 'lms-tc-' + Math.random().toString(36).slice(2, 8);
+    container.innerHTML = statsHtml
+        + `<div style="position:relative;width:100%;height:260px;"><canvas id="${chartId}"></canvas></div>`;
 
-		for (let g = 0; g <= 4; g++) {
-			const gY   = padT + chartH - (g / 4) * chartH;
-			const gVal = (maxHours * g / 4).toFixed(1);
-			grid += `<line x1="${padL}" y1="${gY.toFixed(1)}" x2="${W-padR}" y2="${gY.toFixed(1)}"
-				stroke="${borderColor}" stroke-width="1" stroke-dasharray="${g > 0 ? '4,4' : ''}"/>
-				<text x="${(padL-5).toFixed(1)}" y="${(gY+4).toFixed(1)}" text-anchor="end" font-size="9" fill="${mutedColor}">${gVal}</text>`;
-		}
+    // ── Load Chart.js + datalabels, then render ───────────────────────────
+    const _draw = () => {
+        const isDark   = _getCurrentTheme() === 'dark';
+        const ACCENT   = isDark ? '#818CF8' : '#4F46E5';
+        const GRID     = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)';
+        const MUTED    = isDark ? '#64748B' : '#94A3B8';
+        const TEXT     = isDark ? '#F1F5F9' : '#0F172A';
+        const AVG_CLR  = isDark ? 'rgba(248,113,113,0.70)' : 'rgba(220,38,38,0.55)';
 
-		container.innerHTML = `
-			<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;display:block;">
-				<rect x="0" y="0" width="${W}" height="${H}" fill="${surfaceColor}" rx="8"/>
-				${grid}
-				<line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT+chartH}" stroke="${borderColor}" stroke-width="1.5"/>
-				<line x1="${padL}" y1="${padT+chartH}" x2="${W-padR}" y2="${padT+chartH}" stroke="${borderColor}" stroke-width="1.5"/>
-				${bars}${xLabels}
-				<text x="${W/2}" y="${H-2}" text-anchor="middle" font-size="11" fill="${mutedColor}">Oy (soat)</text>
-			</svg>`;
-	}
+        // Color intensity by ratio to max
+        const barColors = values.map(v => {
+            const r = v / maxH;
+            if (r <= 0)    return isDark ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.10)';
+            if (r < 0.10)  return isDark ? 'rgba(129,140,248,0.30)' : 'rgba(99,102,241,0.22)';
+            if (r < 0.30)  return isDark ? 'rgba(129,140,248,0.52)' : 'rgba(79,70,229,0.42)';
+            if (r < 0.60)  return isDark ? 'rgba(129,140,248,0.72)' : 'rgba(79,70,229,0.68)';
+            return ACCENT;
+        });
+        const borderColors = values.map(v => v > 0 ? ACCENT : 'transparent');
+
+        // Inline average-line plugin
+        const avgLinePlugin = {
+            id: 'lmsAvgLine',
+            afterDraw(chart) {
+                const { ctx, chartArea: { left, right }, scales: { y } } = chart;
+                const yPos = y.getPixelForValue(avgH);
+                ctx.save();
+                ctx.setLineDash([5, 4]);
+                ctx.strokeStyle = AVG_CLR;
+                ctx.lineWidth   = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(left, yPos);
+                ctx.lineTo(right, yPos);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle  = AVG_CLR;
+                ctx.font       = '500 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial';
+                ctx.textAlign  = 'right';
+                ctx.fillText("O'rtacha: " + avgH.toFixed(1) + 's', right, yPos - 5);
+                ctx.restore();
+            }
+        };
+
+        const canvas = document.getElementById(chartId);
+        if (!canvas) return;
+
+        // Destroy existing if re-render
+        if (canvas._chartInstance) { canvas._chartInstance.destroy(); }
+
+        const chartCfg = {
+            type: 'bar',
+            plugins: [avgLinePlugin],
+            data: {
+                labels,
+                datasets: [{
+                    data:            values,
+                    backgroundColor: barColors,
+                    borderColor:     borderColors,
+                    borderWidth:     1.5,
+                    borderRadius:    6,
+                    borderSkipped:   false,
+                }]
+            },
+            options: {
+                responsive:          true,
+                maintainAspectRatio: false,
+                layout:   { padding: { top: 28, right: 8, bottom: 0, left: 4 } },
+                animation: { duration: 600, easing: 'easeOutQuart' },
+                plugins: {
+                    legend:      { display: false },
+                    tooltip: {
+                        backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+                        borderColor:     isDark ? '#334155' : '#E2E8F0',
+                        borderWidth:     1,
+                        titleColor:      TEXT,
+                        bodyColor:       MUTED,
+                        padding:         10,
+                        cornerRadius:    8,
+                        callbacks: {
+                            title: ctx => labels[ctx[0].dataIndex] + '  ' + monthlyData[ctx[0].dataIndex]?.month,
+                            label: ctx  => '  ' + ctx.parsed.y.toFixed(1) + ' soat',
+                        }
+                    },
+                    // datalabels — only if plugin loaded
+                    datalabels: window.ChartDataLabels ? {
+                        anchor:    'end',
+                        align:     'top',
+                        offset:    2,
+                        formatter: v => v > 0 ? v.toFixed(1) : '',
+                        font:      { size: 11, weight: '500' },
+                        color: ctx => {
+                            const ratio = values[ctx.dataIndex] / maxH;
+                            return ratio > 0.25 ? ACCENT : MUTED;
+                        }
+                    } : false,
+                },
+                scales: {
+                    x: {
+                        grid:   { display: false },
+                        border: { display: false },
+                        ticks:  {
+                            color:       MUTED,
+                            font:        { size: 12 },
+                            autoSkip:    false,
+                            maxRotation: 0,
+                        }
+                    },
+                    y: {
+                        grid:   { color: GRID },
+                        border: { display: false, dash: [4, 4] },
+                        ticks:  {
+                            color:         MUTED,
+                            font:          { size: 11 },
+                            maxTicksLimit: 5,
+                            callback:      v => v + 's',
+                        },
+                        beginAtZero: true,
+                    }
+                }
+            }
+        };
+
+        // Register datalabels if available
+        if (window.ChartDataLabels) {
+            Chart.register(ChartDataLabels);
+        }
+
+        canvas._chartInstance = new Chart(canvas, chartCfg);
+    };
+
+    // Load Chart.js + datalabels plugin dynamically if not present
+    const _loadScript = (src, cb) => {
+        if (document.querySelector(`script[src="${src}"]`)) { cb(); return; }
+        const s  = document.createElement('script');
+        s.src    = src;
+        s.onload = cb;
+        document.head.appendChild(s);
+    };
+
+    const CHARTJS_CDN    = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js';
+    const DATALABELS_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js';
+
+    if (typeof Chart === 'undefined') {
+        _loadScript(CHARTJS_CDN, () => {
+            _loadScript(DATALABELS_CDN, _draw);
+        });
+    } else {
+        if (typeof ChartDataLabels === 'undefined') {
+            _loadScript(DATALABELS_CDN, _draw);
+        } else {
+            _draw();
+        }
+    }
+}
 
 	// ── Pagination ───────────────────────────────────────────────────────
 	_renderPagination(total, tab) {

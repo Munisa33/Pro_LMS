@@ -1,13 +1,43 @@
+// ── Full-width helper ─────────────────────────────────────────────────────
+function _lmsDbForceFullWidth() {
+    const root = document.querySelector('.page-container[data-page-route="lms-dashboard"]');
+    if (!root) return;
+    // Frappe's built-in full-width class on .page-body removes max-width
+    const pageBody = root.querySelector('.page-body');
+    if (pageBody) pageBody.classList.add('full-width');
+    // Override any inline container max-widths
+    const selectors = [
+        '.container.page-body',
+        '.page-wrapper',
+        '.page-content',
+        '.layout-main',
+        '.layout-main-section-wrapper',
+        '.layout-main-section',
+    ];
+    selectors.forEach(sel => {
+        root.querySelectorAll(sel).forEach(el => {
+            el.style.maxWidth     = '100%';
+            el.style.width        = '100%';
+            el.style.paddingLeft  = '0';
+            el.style.paddingRight = '0';
+            el.style.marginLeft   = '0';
+            el.style.marginRight  = '0';
+        });
+    });
+}
+
 frappe.pages["lms-dashboard"].on_page_load = function (wrapper) {
     frappe.ui.make_app_page({
         parent: wrapper,
         title: "O'quv Dashboard",
         single_column: true,
     });
+    _lmsDbForceFullWidth();
     wrapper.lms_dashboard_instance = new LMSDashboard(wrapper);
 };
 
 frappe.pages["lms-dashboard"].on_page_show = function (wrapper) {
+    _lmsDbForceFullWidth();
     if (wrapper.lms_dashboard_instance) {
         wrapper.lms_dashboard_instance.refresh();
     }
