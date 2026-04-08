@@ -69,7 +69,9 @@ app_include_css = [
 # ------------------
 # include app icons in desk
 # app_include_icons = "pro_lms/public/icons.svg"
-
+role_home_page = {
+    "LMS Student": "lms-dashboard" # Sahifa nomini (slug) yozing
+}
 # Home Pages
 # ----------
 
