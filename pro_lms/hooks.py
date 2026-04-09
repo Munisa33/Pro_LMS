@@ -33,7 +33,11 @@ doctype_js = {
 # 		"has_permission": "pro_lms.api.permission.has_app_permission"
 # 	}
 # ]
+role_home_page = {
+    "LMS Student": "lms-dashboard"
+}
 
+boot_session = "pro_lms.lms_for_dbr.api.session.set_lms_default_route"
 # Includes in <head>
 # ------------------
 
@@ -43,7 +47,7 @@ app_include_css = [
     "/assets/pro_lms/css/lms_dashboard.css",
     "/assets/pro_lms/css/lms_player.css",
 ]
-# app_include_js = "/assets/pro_lms/js/pro_lms.js"
+app_include_js = "/assets/pro_lms/js/lms_redirect.js"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/pro_lms/css/pro_lms.css"
@@ -69,9 +73,7 @@ app_include_css = [
 # ------------------
 # include app icons in desk
 # app_include_icons = "pro_lms/public/icons.svg"
-role_home_page = {
-    "LMS Student": "lms-dashboard" # Sahifa nomini (slug) yozing
-}
+
 # Home Pages
 # ----------
 

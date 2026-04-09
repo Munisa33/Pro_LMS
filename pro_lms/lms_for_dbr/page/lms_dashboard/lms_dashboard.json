@@ -16,6 +16,9 @@
         },
         {
             "role": "System Manager"
+        },
+        {
+            "role": "LMS Student"
         }
     ],
     "script": null,
