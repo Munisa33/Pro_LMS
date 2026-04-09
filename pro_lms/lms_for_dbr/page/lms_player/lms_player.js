@@ -270,6 +270,12 @@ class LMSPlayer {
                                 .join("")}
                         </div>
                     </div>
+                    <div class="lms-quality-wrap">
+                        <button class="lms-ctrl-btn lms-ctrl-sm" id="lms-ctrl-quality" title="Sifat">
+                            <span id="lms-quality-label">Avto</span>
+                        </button>
+                        <div class="lms-quality-menu" id="lms-quality-menu" style="display:none"></div>
+                    </div>
                     <button class="lms-ctrl-btn lms-ctrl-sm" id="lms-ctrl-fullscreen">⛶</button>
                 </div>
             </div>
@@ -292,6 +298,12 @@ class LMSPlayer {
                 },
                 onError: () => {
                     this.$main.find("#lms-video-error").show();
+                },
+                onQualitiesAvailable: (levels, current) => {
+                    this._populateQualityMenu(levels, current);
+                },
+                onQualityChange: (quality) => {
+                    this._updateQualityLabel(quality);
                 },
             }
         );
@@ -360,7 +372,8 @@ class LMSPlayer {
         });
 
         $root.off("click", "#lms-ctrl-speed").on("click", "#lms-ctrl-speed", (e) => {
-			e.stopPropagation(); // global $root handler-ga yetib bormasin
+			e.stopPropagation();
+			$root.find("#lms-quality-menu").hide();
 			$root.find("#lms-speed-menu").toggle();
 		});
 
@@ -404,6 +417,56 @@ class LMSPlayer {
         this._allListeners.push(() => document.removeEventListener("keydown", kbHandler));
 
         $root.find("#lms-video-embed, #lms-video-click-overlay").on("contextmenu", (e) => e.preventDefault());
+
+        // Quality menu controls
+        $root.off("click", "#lms-ctrl-quality").on("click", "#lms-ctrl-quality", (e) => {
+            e.stopPropagation();
+            $root.find("#lms-speed-menu").hide();
+            $root.find("#lms-quality-menu").toggle();
+        });
+
+        $root.off("click", ".lms-quality-opt").on("click", ".lms-quality-opt", (e) => {
+            const quality = $(e.currentTarget).data("quality");
+            ve() && ve().setQuality(quality);
+            this._updateQualityLabel(quality);
+            $root.find("#lms-quality-menu").hide();
+            $root.find(".lms-quality-opt").removeClass("active");
+            $(e.currentTarget).addClass("active");
+        });
+
+        // Close quality menu on outside click
+        const qualityOutsideHandler = (e) => {
+            if (!$(e.target).closest(".lms-quality-wrap").length) {
+                $root.find("#lms-quality-menu").hide();
+            }
+        };
+        document.addEventListener("click", qualityOutsideHandler);
+        this._allListeners.push(() =>
+            document.removeEventListener("click", qualityOutsideHandler)
+        );
+    }
+
+    _populateQualityMenu(levels, current) {
+        const ve = this.videoEngine;
+        if (!ve || !levels || levels.length === 0) return;
+
+        const $menu = this.$main.find("#lms-quality-menu");
+        const html = levels
+            .map((q) => {
+                const label = ve._ytQualityLabel(q);
+                const activeClass = q === current ? " active" : "";
+                return `<div class="lms-quality-opt${activeClass}" data-quality="${q}">${label}</div>`;
+            })
+            .join("");
+        $menu.html(html);
+        this._updateQualityLabel(current);
+        this.$main.find(".lms-quality-wrap").show();
+    }
+
+    _updateQualityLabel(quality) {
+        if (!this.videoEngine) return;
+        const label = this.videoEngine._ytQualityLabel(quality);
+        this.$main.find("#lms-quality-label").text(label);
     }
 
     _save_progress() {
@@ -1373,6 +1436,10 @@ class VideoEngine {
         this._playStartTime = null;
         this._playStartPos = null;
         this._destroyed = false;
+        this._qualityLevels = [];
+        this._currentQuality = "auto";
+        this._qualitiesDetected = false;
+        this._lastDisplayedSec = -1;
 
         this._init();
     }
@@ -1418,22 +1485,26 @@ class VideoEngine {
                 },
                 events: {
                     onReady: (e) => {
-                        // FIX 1a: Explicitly unMute before setVolume.
-                        // Chrome autoplay policy silently mutes the player
-                        // when controls:0 is used. unMute() must come first.
                         e.target.unMute();
                         e.target.setVolume(100);
                         e.target.setPlaybackRate(this.playbackRate);
+                        this._detectYouTubeQualities();
                     },
                     onStateChange: (e) => {
                         if (e.data === YT.PlayerState.PLAYING) {
                             this._onPlay();
+                            this._detectYouTubeQualities();
                         } else if (
                             e.data === YT.PlayerState.PAUSED ||
                             e.data === YT.PlayerState.ENDED
                         ) {
                             this._onPause();
                         }
+                    },
+                    onPlaybackQualityChange: (e) => {
+                        this._currentQuality = e.data;
+                        this.callbacks.onQualityChange &&
+                            this.callbacks.onQualityChange(e.data, this._qualityLevels);
                     },
                     onError: () => {
                         this.callbacks.onError && this.callbacks.onError();
@@ -1683,6 +1754,51 @@ class VideoEngine {
         } else if (this.htmlVideo) {
             this.htmlVideo.playbackRate = rate;
         }
+    }
+
+    // ── Quality control ──────────────────────────────────────────
+    _ytQualityLabel(q) {
+        const map = {
+            highres: "4K+",
+            hd2160: "2160p",
+            hd1440: "1440p",
+            hd1080: "1080p",
+            hd720: "720p",
+            large: "480p",
+            medium: "360p",
+            small: "240p",
+            tiny: "144p",
+            auto: "Avto",
+        };
+        return map[q] || q;
+    }
+
+    _detectYouTubeQualities() {
+        if (this._qualitiesDetected || !this.ytPlayer || !this.ytPlayer.getAvailableQualityLevels) return;
+        const levels = this.ytPlayer.getAvailableQualityLevels();
+        if (!levels || levels.length === 0) return;
+        this._qualitiesDetected = true;
+        this._qualityLevels = levels;
+        this._currentQuality = this.ytPlayer.getPlaybackQuality() || "auto";
+        this.callbacks.onQualitiesAvailable &&
+            this.callbacks.onQualitiesAvailable(levels, this._currentQuality);
+    }
+
+    setQuality(quality) {
+        this._currentQuality = quality;
+        if (this.playerType === "youtube" && this.ytPlayer) {
+            this.ytPlayer.setPlaybackQuality(quality);
+        } else if (this.playerType === "vimeo" && this.vimeoPlayer) {
+            this.vimeoPlayer.setQuality(quality).catch(() => {});
+        }
+    }
+
+    getAvailableQualities() {
+        return this._qualityLevels;
+    }
+
+    getCurrentQuality() {
+        return this._currentQuality;
     }
 
     destroy() {

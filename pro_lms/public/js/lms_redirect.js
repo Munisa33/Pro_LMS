@@ -1,4 +1,3 @@
-// Override desk set_route BEFORE Application starts
 const _original_app_set_route = frappe.Application.prototype.set_route;
 
 frappe.Application.prototype.set_route = function () {
@@ -8,24 +7,29 @@ frappe.Application.prototype.set_route = function () {
         !frappe.user_roles.includes("System Manager") &&
         !frappe.user_roles.includes("Administrator")
     ) {
-        // Hozirgi route lms-dashboard emasmi — redirect kerak
-        const current = frappe.get_route_str();
+        // Router hali tayyor emas bo'lishi mumkin — null check
+        const route = frappe.get_route ? frappe.get_route() : null;
+        const current = route ? route.join("/") : "";
+
         const is_initial_load =
             !current ||
             current === "" ||
             current === "home" ||
             current === "Workspaces" ||
+            current === "pages" ||
             current.startsWith("Workspaces/");
 
         if (is_initial_load) {
-            // Barcha last_route cache larni tozalash
             try {
-                const keys_to_clean = Object.keys(localStorage).filter(
-                    (k) => k.includes("last_route") || k.includes("last_visited")
-                );
-                keys_to_clean.forEach((k) => localStorage.removeItem(k));
+                Object.keys(localStorage)
+                    .filter(
+                        (k) =>
+                            k.includes("last_route") ||
+                            k.includes("last_visited")
+                    )
+                    .forEach((k) => localStorage.removeItem(k));
             } catch (e) {
-                // localStorage bloklangan
+                // silent
             }
 
             frappe.set_route("lms-dashboard");
@@ -36,7 +40,6 @@ frappe.Application.prototype.set_route = function () {
     return _original_app_set_route.call(this);
 };
 
-// Sahifa yopilganda keyingi ochilish uchun last_route ni lms-dashboard qilish
 $(window).on("beforeunload", function () {
     if (
         frappe.user_roles &&
@@ -45,7 +48,11 @@ $(window).on("beforeunload", function () {
     ) {
         try {
             Object.keys(localStorage)
-                .filter((k) => k.includes("last_route") || k.includes("last_visited"))
+                .filter(
+                    (k) =>
+                        k.includes("last_route") ||
+                        k.includes("last_visited")
+                )
                 .forEach((k) => localStorage.setItem(k, "lms-dashboard"));
         } catch (e) {
             // silent

@@ -331,6 +331,38 @@
 
 .lms-speed-opt:hover { background: var(--fg-hover-color); }
 
+/* ─── Quality menu ─────────────────────────────────────────────────────────── */
+.lms-quality-wrap { position: relative; }
+.lms-quality-menu {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    right: 0;
+    background: var(--card-bg, var(--bg-color));
+    border: 1px solid var(--border-color);
+    border-radius: var(--lms-radius);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    z-index: 50;
+    min-width: 90px;
+    overflow: hidden;
+}
+.lms-quality-opt {
+    padding: 7px 14px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    text-align: center;
+    transition: background var(--lms-trans);
+    white-space: nowrap;
+}
+.lms-quality-opt:hover { background: var(--fg-hover-color); }
+.lms-quality-opt.active {
+    font-weight: 600;
+    color: var(--primary, #5e64ff);
+}
+#lms-ctrl-quality {
+    font-size: 0.75rem;
+    min-width: 40px;
+}
+
 /* ─── Content tabs ──────────────────────────────────────────────────────────── */
 .lms-player-content {
     flex: 1;

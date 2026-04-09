@@ -37,7 +37,7 @@ role_home_page = {
     "LMS Student": "lms-dashboard"
 }
 
-boot_session = "pro_lms.lms_for_dbr.api.session.set_lms_default_route"
+on_login = "pro_lms.lms_for_dbr.api.session.on_login_redirect"
 # Includes in <head>
 # ------------------
 
