@@ -1224,6 +1224,7 @@ _close_floating_panel() {
                 if (res.lesson_completed) {
                     this.data.progress.is_completed = true;
                     this._update_sidebar_lesson_status();
+                    this._unlock_next_sidebar_lesson();
                 }
                 this._render_nav();
                 this._render_mobile_nav();
@@ -1234,11 +1235,115 @@ _close_floating_panel() {
     }
 
     _update_sidebar_lesson_status() {
-        this.$main.find(`.lms-sidebar-lesson[data-lesson="${this.params.lesson}"]`)
-            .removeClass("lms-lesson-current lms-lesson-inprogress")
-            .addClass("lms-lesson-done")
-            .find(".lms-lesson-icon").text("✅");
+        // Joriy darsni sidebar'da "tugatilgan" holatga o'tkaz
+        const currentLessonName = this.params.lesson;
+
+        // 1. this.data.sidebar ichidagi joriy darsni yangilab qo'y
+        for (const sec of (this.data.sidebar.sections || [])) {
+            for (const lesson of (sec.lessons || [])) {
+                if (lesson.lesson_name === currentLessonName) {
+                    lesson.is_completed = true;
+                    lesson.completion_percent = Math.max(
+                        lesson.completion_percent || 0, 100
+                    );
+                    if (lesson.has_quiz) lesson.quiz_attempted = true;
+                    if (lesson.has_open_questions) lesson.oq_all_answered = true;
+                    if (lesson.has_assignment) lesson.assignment_submitted = true;
+                }
+            }
+            // Section completion counter qayta hisoblansin
+            sec.completion = sec.completion || { done: 0, total: (sec.lessons || []).length };
+            sec.completion.done = (sec.lessons || []).filter(l => l.is_completed).length;
+        }
+
+        // 2. DOM: joriy lesson elementining ikona/klassini yangila
+        const $current = this.$main
+            .find(`.lms-sidebar-lesson[data-lesson="${currentLessonName}"]`);
+        if ($current.length) {
+            $current
+                .removeClass("lms-lesson-current lms-lesson-inprogress")
+                .addClass("lms-lesson-done");
+            const $icon = $current.find(".lms-lesson-icon");
+            if ($icon.length) $icon.text("✅");
+        }
+
+        // 3. Section completion counter (X/Y ✓) ni yangila
+        const sections = this.data.sidebar.sections || [];
+        this.$main.find(".lms-sidebar-section").each((i, secEl) => {
+            const sec = sections[i];
+            if (!sec) return;
+            $(secEl).find(".lms-sidebar-sec-count")
+                .text(`${sec.completion.done}/${sec.completion.total} ✓`);
+        });
+
+        // 4. Umumiy kurs progress bar'ini yangila
+        const $progress = this.$main.find(".lms-sidebar-progress");
+        if ($progress.length) {
+            $progress.html(_progressBar(this._calc_course_progress()));
+        }
     }
+
+    _unlock_next_sidebar_lesson() {
+    const $allLessons = this.$main.find(".lms-sidebar-lesson");
+    let currentIdx = -1;
+
+    $allLessons.each((i, el) => {
+        if ($(el).data("lesson") === this.params.lesson) {
+            currentIdx = i;
+        }
+    });
+
+    if (currentIdx < 0 || currentIdx >= $allLessons.length - 1) return;
+
+    const $nextLesson = $($allLessons[currentIdx + 1]);
+    if ($nextLesson.data("locked") != 1) return;
+
+    const nextLessonName = $nextLesson.data("lesson");
+
+    // ── 1. Lesson elementini unlock qil ──────────────────────────
+    $nextLesson
+        .removeClass("lms-lesson-locked")
+        .attr("data-locked", "0")
+        .data("locked", 0)
+        .removeAttr("title");
+
+    const $icon = $nextLesson.find(".lms-lesson-icon");
+    if ($icon.text().trim() === "🔒") {
+        $icon.text("⚪");
+    }
+
+    // ── 2. Parent section ni topib unlock + expand qil ───────────
+    const $parentSectionLessons = $nextLesson.closest(".lms-sidebar-sec-lessons");
+    const $parentSection = $nextLesson.closest(".lms-sidebar-section");
+
+    if ($parentSection.hasClass("lms-section-locked")) {
+        // Section lock classini olib tashla
+        $parentSection.removeClass("lms-section-locked");
+
+        // Section header ikonasini 🔒 → 📁 qil
+        $parentSection.find(".lms-sidebar-sec-icon").first().text("📁");
+    }
+
+    // Section yopiq (collapsed) bo'lsa — ochib ber
+    if ($parentSectionLessons.hasClass("lms-collapsed")) {
+        $parentSectionLessons.removeClass("lms-collapsed");
+
+        // Toggle ikonasini ▶ → ▼ qil
+        const $secHeader = $parentSection.find(".lms-sidebar-sec-header").first();
+        $secHeader.find(".lms-sidebar-toggle-icon").text("▼");
+    }
+
+    // ── 3. this.data.sidebar sinxronizatsiya ─────────────────────
+    for (const sec of (this.data.sidebar.sections || [])) {
+        for (const lesson of (sec.lessons || [])) {
+            if (lesson.lesson_name === nextLessonName) {
+                lesson.is_locked = false;
+                // Section ni ham unlock qil (data ichida)
+                sec.is_locked = false;
+            }
+        }
+    }
+}
 
     _block_reason_label(reason) {
         const map = {
@@ -1332,7 +1437,7 @@ _close_floating_panel() {
         // Sidebar lesson click
         $root.on("click", ".lms-sidebar-lesson", (e) => {
             const $el = $(e.currentTarget);
-            if ($el.data("locked") == 1) {
+            if ($el.attr("data-locked") == "1") {
                 frappe.show_alert({ message: $el.attr("title"), indicator: "orange" }, 3);
                 return;
             }
