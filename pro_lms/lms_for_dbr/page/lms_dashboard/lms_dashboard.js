@@ -37,12 +37,18 @@ frappe.pages["lms-dashboard"].on_page_load = function (wrapper) {
 };
 
 frappe.pages["lms-dashboard"].on_page_show = function (wrapper) {
+    // Session open — LmsSession.init is idempotent (safe to call repeatedly)
+    if (typeof LmsSession !== "undefined") LmsSession.init("dashboard");
+
     _lmsDbForceFullWidth();
     if (wrapper.lms_dashboard_instance) {
         wrapper.lms_dashboard_instance.refresh();
     }
 };
 
+frappe.pages["lms-dashboard"].on_page_hide = function (wrapper) {
+    if (typeof LmsSession !== "undefined") LmsSession.close();
+};
 class LMSDashboard {
     constructor(wrapper) {
         this.wrapper = wrapper;
@@ -785,3 +791,4 @@ function _fmt_duration(sec) {
 function _esc_nl(str) {
     return _esc(str).replace(/\n/g, "<br>");
 }
+

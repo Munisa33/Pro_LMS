@@ -1,6 +1,8 @@
 // ═══════════════════════════════════════════════════════════════
 // SECTION 1: Page Initialization
 // ═══════════════════════════════════════════════════════════════
+// Session tracking (open/close/heartbeat/beacon) is handled globally
+// by lms_session.js via app_include_js. Do NOT duplicate here.
 
 frappe.pages["lms-player"].on_page_load = function (wrapper) {
     frappe.ui.make_app_page({
@@ -20,32 +22,36 @@ frappe.pages["lms-player"].on_page_load = function (wrapper) {
 
 const _SS_KEY = "lms_player_session";
 
-frappe.pages["lms-player"].on_page_hide = function (wrapper) {
-    localStorage.removeItem("lms_player_active");
-    if (wrapper.lms_player_instance) {
-        wrapper.lms_player_instance.destroy();
-        wrapper.lms_player_instance = null;
-    }
-};
-
 frappe.pages["lms-player"].on_page_show = function (wrapper) {
+    // Session open — LmsSession.init is idempotent (safe to call repeatedly)
+    if (typeof LmsSession !== "undefined") LmsSession.init("player");
+
     const TAB_KEY = "lms_player_active";
     localStorage.setItem(TAB_KEY, "1");
 
     const params = _parseUrlParams();
-
     if (!params.lesson || !params.enrollment) {
         $(wrapper).find(".layout-main-section").html(
             '<div class="lms-player-error">URL parametrlari yetishmayapti. <a href="/app/lms-dashboard">Dashboard</a></div>'
         );
         return;
     }
-
-    // Refresh uchun sessionStorage ga saqlaymiz
     sessionStorage.setItem(_SS_KEY, JSON.stringify({ lesson: params.lesson, enrollment: params.enrollment }));
-
     wrapper.lms_player_instance = new LMSPlayer(wrapper, params);
 };
+
+frappe.pages["lms-player"].on_page_hide = function (wrapper) {
+    if (typeof LmsSession !== "undefined") LmsSession.close();
+
+    localStorage.removeItem("lms_player_active");
+
+    if (wrapper.lms_player_instance) {
+        wrapper.lms_player_instance.destroy();
+        wrapper.lms_player_instance = null;
+    }
+};
+
+
 
 function _parseUrlParams() {
     // 1. window global (navigate_to_lesson tomonidan set qilinadi)
@@ -2410,3 +2416,5 @@ function _progressBar(pct) {
             <span class="lms-prog-label">${v}%</span>
         </div>`;
 }
+// Session tracker — player page
+

@@ -1,0 +1,65 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-04-11 12:53:51.199047",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "bot_token",
+  "is_active",
+  "adminlar_section",
+  "admins"
+ ],
+ "fields": [
+  {
+   "fieldname": "bot_token",
+   "fieldtype": "Password",
+   "in_list_view": 1,
+   "label": "Bot Token",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Bot Faol"
+  },
+  {
+   "fieldname": "adminlar_section",
+   "fieldtype": "Section Break",
+   "label": "Adminlar"
+  },
+  {
+   "fieldname": "admins",
+   "fieldtype": "Table",
+   "label": "Admins",
+   "options": "LMS Bot Admin"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-04-12 14:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "LMS for DBR",
+ "name": "LMS Bot Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

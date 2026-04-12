@@ -17,7 +17,12 @@ doc_events = {
 scheduler_events = {
     "daily": [
         "pro_lms.lms_for_dbr.api.send_inactivity_reminders"
-    ]
+    ],
+    "cron": {
+        "* * * * *": [
+            "pro_lms.lms_for_dbr.bot.session_tracker.check_dead_sessions"
+        ],
+    }
 }
 # required_apps = []
 doctype_js = {
@@ -37,7 +42,10 @@ role_home_page = {
     "LMS Student": "lms-dashboard"
 }
 
-on_login = "pro_lms.lms_for_dbr.api.session.on_login_redirect"
+on_login = [
+    "pro_lms.lms_for_dbr.api.session.on_login_redirect",
+    "pro_lms.lms_for_dbr.bot.notifications.on_user_login",
+]
 # Includes in <head>
 # ------------------
 
@@ -47,7 +55,10 @@ app_include_css = [
     "/assets/pro_lms/css/lms_dashboard.css",
     "/assets/pro_lms/css/lms_player.css",
 ]
-app_include_js = "/assets/pro_lms/js/lms_redirect.js"
+app_include_js = [
+    "/assets/pro_lms/js/lms_redirect.js",
+    "/assets/pro_lms/js/lms_session.bundle.js",
+]
 
 # include js, css files in header of web template
 # web_include_css = "/assets/pro_lms/css/pro_lms.css"
