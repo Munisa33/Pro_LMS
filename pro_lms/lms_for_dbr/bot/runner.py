@@ -8,8 +8,19 @@ from .bot import start_command, digest_command, handle_reply_button
 def run_bot():
     """Bot ni polling rejimida ishga tushirish"""
 
-    settings = frappe.get_single("LMS Bot Settings")
-    token = settings.get_password("bot_token")
+    # DB dan token olish
+    try:
+        frappe.connect()
+        settings = frappe.get_single("LMS Bot Settings")
+        token = settings.get_password("bot_token")
+    except Exception as e:
+        print(f"XATO: LMS Bot Settings o'qishda muammo: {e}")
+        return
+    finally:
+        try:
+            frappe.db.close()
+        except Exception:
+            pass
 
     if not token:
         print("XATO: Bot token sozlanmagan. LMS Bot Settings ga token kiriting.")
