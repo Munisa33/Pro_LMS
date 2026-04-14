@@ -31,10 +31,35 @@ def _reply_keyboard():
     )
 
 
+def _db_connect():
+    """
+    Har doim yangi DB ulanish ochadi.
+    Avval eski (o'lik) ulanishni yopadi, keyin yangi ochadi.
+    MySQL wait_timeout muammosini hal qiladi.
+    """
+    try:
+        frappe.db.close()
+    except Exception:
+        pass
+    frappe.connect()
+
+
+def _db_close():
+    """DB ga commit qilib, ulanishni yopadi."""
+    try:
+        frappe.db.commit()
+    except Exception:
+        pass
+    try:
+        frappe.db.close()
+    except Exception:
+        pass
+
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Admin /start bosganida chat_id avtomatik saqlanadi"""
     try:
-        frappe.connect()
+        _db_connect()
 
         user = update.effective_user
         chat_id = str(update.effective_chat.id)
@@ -87,16 +112,13 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
     finally:
-        try:
-            frappe.db.close()
-        except Exception:
-            pass
+        _db_close()
 
 
 async def digest_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """/digest komandasi — kunlik hisobotni darhol yuboradi"""
     try:
-        frappe.connect()
+        _db_connect()
 
         chat_id = str(update.effective_chat.id)
 
@@ -119,10 +141,7 @@ async def digest_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         frappe.log_error(str(exc), "LMS Bot digest_command")
         return
     finally:
-        try:
-            frappe.db.close()
-        except Exception:
-            pass
+        _db_close()
 
     # send_daily_digest o'zi ichida frappe.connect/close qiladi
     try:
@@ -132,7 +151,7 @@ async def digest_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         frappe.log_error(str(exc), "LMS Bot digest_command send")
 
     try:
-        frappe.connect()
+        _db_connect()
         await update.message.reply_text(
             "✅ Kunlik hisobot yuborildi!",
             reply_markup=_reply_keyboard(),
@@ -140,10 +159,7 @@ async def digest_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as exc:
         frappe.log_error(str(exc), "LMS Bot digest_command reply")
     finally:
-        try:
-            frappe.db.close()
-        except Exception:
-            pass
+        _db_close()
 
 
 async def handle_reply_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -152,7 +168,7 @@ async def handle_reply_button(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     if text == "📊 Kunlik hisobot":
         try:
-            frappe.connect()
+            _db_connect()
 
             chat_id = str(update.effective_chat.id)
 
@@ -175,10 +191,7 @@ async def handle_reply_button(update: Update, context: ContextTypes.DEFAULT_TYPE
             frappe.log_error(str(exc), "LMS Bot handle_reply_button")
             return
         finally:
-            try:
-                frappe.db.close()
-            except Exception:
-                pass
+            _db_close()
 
         # send_daily_digest o'zi ichida frappe.connect/close qiladi
         try:
@@ -188,7 +201,7 @@ async def handle_reply_button(update: Update, context: ContextTypes.DEFAULT_TYPE
             frappe.log_error(str(exc), "LMS Bot handle_reply_button send")
 
         try:
-            frappe.connect()
+            _db_connect()
             await update.message.reply_text(
                 "✅ Kunlik hisobot yuborildi!",
                 reply_markup=_reply_keyboard(),
@@ -196,7 +209,4 @@ async def handle_reply_button(update: Update, context: ContextTypes.DEFAULT_TYPE
         except Exception as exc:
             frappe.log_error(str(exc), "LMS Bot handle_reply_button reply")
         finally:
-            try:
-                frappe.db.close()
-            except Exception:
-                pass
+            _db_close()
