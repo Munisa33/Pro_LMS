@@ -96,6 +96,21 @@ class LMSCourseBuilder(Document):
                 except Exception as e:
                     errors.append(str(e))
 
+            # Program'ning courses child table'idan orphan row'ni olib tashlaymiz,
+            # aks holda keyingi Course Builder submit qilinganda
+            # "Could not find Row #1: Course: ..." xatosi chiqadi.
+            try:
+                program_name = frappe.db.get_value("LMS Course", course_name, "program") or self.program_name
+                if program_name and frappe.db.exists("LMS Program", program_name):
+                    frappe.db.delete("LMS Program Course", {
+                        "parent": program_name,
+                        "parenttype": "LMS Program",
+                        "course": course_name,
+                    })
+                    deleted.append("LMS Program Course row: {} -> {}".format(program_name, course_name))
+            except Exception as e:
+                errors.append(str(e))
+
             try:
                 frappe.delete_doc("LMS Course", course_name, force=True, ignore_permissions=True)
                 deleted.append("LMS Course: {}".format(course_name))
