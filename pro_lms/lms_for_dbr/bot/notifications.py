@@ -38,12 +38,12 @@ from frappe.utils import get_datetime, format_datetime, now_datetime, getdate, t
 # CONSTANTS
 # ════════════════════════════════════════════════════════════════════════════
 
-TELEGRAM_CHAR_LIMIT = 4096
-MAX_RETRY_ATTEMPTS  = 3
-RETRY_BASE_DELAY    = 0.5          # seconds; 0.5 → 1.0 → 2.0
-FLOOD_WINDOW_SEC    = 60           # Rate limit window
-FLOOD_MAX_MESSAGES  = 20           # Max messages per admin per window
-NOTIFICATION_TIMEOUT = 10          # HTTP timeout (seconds)
+TELEGRAM_CHAR_LIMIT  = 4096
+MAX_RETRY_ATTEMPTS   = 3
+RETRY_BASE_DELAY     = 0.5
+FLOOD_WINDOW_SEC     = 60
+FLOOD_MAX_MESSAGES   = 20
+NOTIFICATION_TIMEOUT = 10
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -51,14 +51,11 @@ NOTIFICATION_TIMEOUT = 10          # HTTP timeout (seconds)
 # ════════════════════════════════════════════════════════════════════════════
 
 class _TagTracker(HTMLParser):
-    """Track open HTML tags for safe truncation."""
     def __init__(self):
         super().__init__()
         self.open_tags = []
 
     def handle_starttag(self, tag, attrs):
-        # Telegram supports: b, strong, i, em, u, ins, s, strike, del,
-        #                     a, code, pre, tg-spoiler, blockquote
         self.open_tags.append(tag)
 
     def handle_endtag(self, tag):
@@ -67,49 +64,36 @@ class _TagTracker(HTMLParser):
 
 
 def _safe_truncate_html(text: str, limit: int = TELEGRAM_CHAR_LIMIT) -> str:
-    """
-    Truncate HTML text without breaking tags.
-    Industry standard: never send malformed HTML to Telegram API.
-    Adds "..." suffix and closes any open tags.
-    """
     if len(text) <= limit:
         return text
 
-    # Reserve space for closing tags + ellipsis
     suffix = "\n..."
-    cut_at = limit - len(suffix) - 100  # extra buffer for closing tags
+    cut_at = limit - len(suffix) - 100
 
-    # Don't cut in the middle of an HTML tag
-    # Find the last '>' before cut_at
     truncated = text[:cut_at]
     last_gt = truncated.rfind(">")
     last_lt = truncated.rfind("<")
 
     if last_lt > last_gt:
-        # We're inside an incomplete tag — cut before it
         truncated = truncated[:last_lt]
 
-    # Track which tags are still open
     tracker = _TagTracker()
     try:
         tracker.feed(truncated)
     except Exception:
         pass
 
-    # Close open tags in reverse order
     closing = "".join(f"</{tag}>" for tag in reversed(tracker.open_tags))
-
     return truncated + suffix + closing
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# SECTION 2 — Core Transport (with retry + rate limiting + preferences)
+# SECTION 2 — Core Transport
 # ════════════════════════════════════════════════════════════════════════════
 
 def _is_in_quiet_hours(admin) -> bool:
-    """Check if current time falls within admin's quiet hours."""
     quiet_start = getattr(admin, "quiet_hours_start", None)
-    quiet_end = getattr(admin, "quiet_hours_end", None)
+    quiet_end   = getattr(admin, "quiet_hours_end", None)
 
     if not quiet_start or not quiet_end:
         return False
@@ -118,30 +102,24 @@ def _is_in_quiet_hours(admin) -> bool:
     current_minutes = now.hour * 60 + now.minute
 
     start_parts = str(quiet_start).split(":")
-    end_parts = str(quiet_end).split(":")
+    end_parts   = str(quiet_end).split(":")
     if len(start_parts) < 2 or len(end_parts) < 2:
         return False
 
     try:
         start_min = int(start_parts[0]) * 60 + int(start_parts[1])
-        end_min = int(end_parts[0]) * 60 + int(end_parts[1])
+        end_min   = int(end_parts[0])   * 60 + int(end_parts[1])
     except (ValueError, IndexError):
         return False
 
     if start_min <= end_min:
         return start_min <= current_minutes < end_min
     else:
-        # Overnight range (e.g., 22:00 - 07:00)
         return current_minutes >= start_min or current_minutes < end_min
 
 
 def _check_flood_limit(chat_id: str) -> bool:
-    """
-    Redis-based rate limiter. Returns True if message can be sent.
-    Prevents notification fatigue — max FLOOD_MAX_MESSAGES per admin per window.
-    Pattern used by: Slack, Discord, Telegram Bot API itself.
-    """
-    key = f"lms_bot_flood_{chat_id}"
+    key   = f"lms_bot_flood_{chat_id}"
     count = frappe.cache().get_value(key)
 
     if count is None:
@@ -157,11 +135,6 @@ def _check_flood_limit(chat_id: str) -> bool:
 
 
 def _send_to_admin(token: str, chat_id: str, text: str) -> bool:
-    """
-    Send message to a single admin with retry + exponential backoff.
-    Returns True on success, False on permanent failure.
-    Industry standard: retry transient errors, fail fast on permanent ones.
-    """
     for attempt in range(MAX_RETRY_ATTEMPTS):
         try:
             resp = requests.post(
@@ -177,12 +150,10 @@ def _send_to_admin(token: str, chat_id: str, text: str) -> bool:
             if resp.ok:
                 return True
 
-            # Telegram error codes
-            status = resp.status_code
+            status     = resp.status_code
             error_body = resp.text[:300]
 
             if status == 429:
-                # Rate limited by Telegram — respect retry_after
                 try:
                     retry_after = resp.json().get("parameters", {}).get("retry_after", 5)
                 except Exception:
@@ -191,20 +162,16 @@ def _send_to_admin(token: str, chat_id: str, text: str) -> bool:
                 continue
 
             if status in (400, 403, 404):
-                # Permanent errors: bad request, blocked by user, chat not found
                 frappe.log_error(
-                    f"Permanent Telegram error for {chat_id}: "
-                    f"HTTP {status} — {error_body}",
+                    f"Permanent Telegram error for {chat_id}: HTTP {status} — {error_body}",
                     "LMS Bot Permanent Error",
                 )
                 return False
 
-            # 5xx = transient server error — retry
             if status >= 500:
                 time.sleep(RETRY_BASE_DELAY * (2 ** attempt))
                 continue
 
-            # Unknown error — log and don't retry
             frappe.log_error(
                 f"Telegram error for {chat_id}: HTTP {status} — {error_body}",
                 "LMS Bot Send Error",
@@ -222,10 +189,7 @@ def _send_to_admin(token: str, chat_id: str, text: str) -> bool:
             return False
 
         except requests.RequestException as exc:
-            frappe.log_error(
-                f"Network error for {chat_id}: {exc}",
-                "LMS Bot Network Error",
-            )
+            frappe.log_error(f"Network error for {chat_id}: {exc}", "LMS Bot Network Error")
             return False
 
     return False
@@ -233,16 +197,14 @@ def _send_to_admin(token: str, chat_id: str, text: str) -> bool:
 
 def _send_message(text: str, level: str = "INFO", event_type: str = "general") -> None:
     """
-    Core dispatcher: sends to all eligible admins.
-
-    Args:
-        text: HTML-formatted message
-        level: INFO | WARNING | CRITICAL
-        event_type: "entry" | "exit" | "digest" | "general"
+    Core dispatcher — DB connection boshida ochiladi, oxirida yopiladi.
+    Bu funksiya bot polling context va Frappe scheduler context ikkalasida ham ishlaydi.
     """
     text = _safe_truncate_html(text)
 
     try:
+        frappe.connect()
+
         settings = frappe.get_single("LMS Bot Settings")
         if not settings.is_active:
             return
@@ -259,19 +221,13 @@ def _send_message(text: str, level: str = "INFO", event_type: str = "general") -
             if not (admin.is_active and admin.chat_id):
                 continue
 
-            # Per-admin notification preferences
-            if event_type == "entry" and not getattr(admin, "notify_on_entry", 1):
-                continue
-            if event_type == "exit" and not getattr(admin, "notify_on_exit", 1):
-                continue
-            if event_type == "digest" and not getattr(admin, "notify_daily_digest", 1):
-                continue
+            if event_type == "entry"  and not getattr(admin, "notify_on_entry",        1): continue
+            if event_type == "exit"   and not getattr(admin, "notify_on_exit",          1): continue
+            if event_type == "digest" and not getattr(admin, "notify_daily_digest",     1): continue
 
-            # Quiet hours (skip for CRITICAL level — always deliver critical)
             if level != "CRITICAL" and _is_in_quiet_hours(admin):
                 continue
 
-            # Anti-flood rate limiting
             if not _check_flood_limit(admin.chat_id):
                 frappe.log_error(
                     f"Rate limit exceeded for {admin.full_name} ({admin.chat_id})",
@@ -285,7 +241,6 @@ def _send_message(text: str, level: str = "INFO", event_type: str = "general") -
             else:
                 fail_count += 1
 
-        # If all sends failed, escalate
         if fail_count > 0 and sent_count == 0:
             frappe.log_error(
                 f"All Telegram sends failed ({fail_count} admins). "
@@ -295,6 +250,11 @@ def _send_message(text: str, level: str = "INFO", event_type: str = "general") -
 
     except Exception as exc:
         frappe.log_error(str(exc), "LMS Bot Transport Error")
+    finally:
+        try:
+            frappe.db.close()
+        except Exception:
+            pass
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -302,11 +262,9 @@ def _send_message(text: str, level: str = "INFO", event_type: str = "general") -
 # ════════════════════════════════════════════════════════════════════════════
 
 def send_entry_notification(employee: str, emp: dict) -> None:
-    """
-    Fires when the first LMS page (dashboard or player) opens.
-    Includes: name, role, active course, timestamp.
-    """
     try:
+        frappe.connect()
+
         course_name = "Belgilanmagan"
         if emp.get("user_id"):
             enr = frappe.db.get_value(
@@ -332,34 +290,34 @@ def send_entry_notification(employee: str, emp: dict) -> None:
             f"🕐 <b>{now_fmt}</b>\n"
             f"📚 Faol kurs: <b>{course_name}</b>"
         )
-        _send_message(msg, level="INFO", event_type="entry")
 
     except Exception as exc:
-        frappe.log_error(str(exc), "LMS Bot Entry Notification")
+        frappe.log_error(str(exc), "LMS Bot Entry Notification build")
+        return
+    finally:
+        try:
+            frappe.db.close()
+        except Exception:
+            pass
+
+    # _send_message o'zi connect/close qiladi
+    _send_message(msg, level="INFO", event_type="entry")
 
 
 # ════════════════════════════════════════════════════════════════════════════
 # SECTION 4 — Exit Notification + Session Summary
 # ════════════════════════════════════════════════════════════════════════════
 
-def send_exit_notification(
-    employee: str,
-    emp: dict,
-    entry_time_raw=None,
-) -> None:
-    """
-    Fires when all LMS pages are closed (explicit close or heartbeat death).
-    Queries everything that happened between entry_time and now.
-    """
+def send_exit_notification(employee: str, emp: dict, entry_time_raw=None) -> None:
     try:
-        now    = now_datetime()
+        frappe.connect()
+
+        now = now_datetime()
 
         if entry_time_raw:
             entry = get_datetime(entry_time_raw)
         else:
-            # Fallback: look at today only, max 8 hours back
             entry = now - timedelta(hours=8)
-            # But don't cross midnight — clamp to today's start
             today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
             if entry < today_start:
                 entry = today_start
@@ -367,7 +325,6 @@ def send_exit_notification(
         buf_start = entry - timedelta(seconds=5)
         buf_end   = now   + timedelta(seconds=5)
 
-        # ── Watched lessons ───────────────────────────────────────────────
         lessons = frappe.db.sql(
             """
             SELECT
@@ -393,17 +350,12 @@ def send_exit_notification(
             as_dict=True,
         )
 
-        # ── Quiz attempts ─────────────────────────────────────────────────
         quizzes = frappe.db.sql(
             """
             SELECT
                 COALESCE(ls.lesson_title, 'Test') AS lesson_title,
-                qa.percentage,
-                qa.passed,
-                qa.score,
-                qa.total_marks,
-                qa.answers,
-                qa.attempt_number
+                qa.percentage, qa.passed, qa.score,
+                qa.total_marks, qa.answers, qa.attempt_number
             FROM `tabLMS Quiz Attempt` qa
             LEFT JOIN `tabLMS Lesson` ls ON ls.name = qa.lesson
             WHERE qa.employee    = %s
@@ -415,13 +367,11 @@ def send_exit_notification(
             as_dict=True,
         )
 
-        # ── Assignment submissions ────────────────────────────────────────
         assignments = frappe.db.sql(
             """
             SELECT
                 COALESCE(ls.lesson_title, 'Dars') AS lesson_title,
-                sub.status,
-                sub.submission_type
+                sub.status, sub.submission_type
             FROM `tabLMS Assignment Submission` sub
             LEFT JOIN `tabLMS Lesson` ls ON ls.name = sub.lesson
             WHERE sub.employee    = %s
@@ -433,15 +383,11 @@ def send_exit_notification(
             as_dict=True,
         )
 
-        # ── Open answers ──────────────────────────────────────────────────
         open_answers = frappe.db.sql(
             """
             SELECT
                 COALESCE(qi.question_text, 'Savol') AS question_text,
-                oa.answer_text,
-                oa.score,
-                oa.is_auto_graded,
-                oa.status
+                oa.answer_text, oa.score, oa.is_auto_graded, oa.status
             FROM `tabLMS Open Answer` oa
             LEFT JOIN `tabLMS Open Question Item` qi ON qi.name = oa.question_item
             WHERE oa.employee    = %s
@@ -453,7 +399,6 @@ def send_exit_notification(
             as_dict=True,
         )
 
-        # ── Total active time ─────────────────────────────────────────────
         total_row = frappe.db.sql(
             """
             SELECT COALESCE(SUM(duration_sec), 0) AS total_sec
@@ -467,7 +412,6 @@ def send_exit_notification(
         )
         total_sec = int(total_row[0].total_sec if total_row else 0)
 
-        # ── Format helpers ────────────────────────────────────────────────
         entry_fmt = format_datetime(entry, "HH:mm:ss")
         exit_fmt  = format_datetime(now,   "HH:mm:ss")
         date_fmt  = format_datetime(entry, "dd.MM.yyyy")
@@ -483,7 +427,6 @@ def send_exit_notification(
         role_parts = [p for p in [emp.get("designation"), emp.get("department")] if p]
         role_line  = f"\n📋 {' · '.join(role_parts)}" if role_parts else ""
 
-        # ── Assemble message ──────────────────────────────────────────────
         lines = [
             "🔴 <b>Tizimdan chiqdi</b>",
             "━━━━━━━━━━━━━━━━━━━━",
@@ -565,35 +508,33 @@ def send_exit_notification(
         if not has_activity:
             lines += ["", "<i>⚠️ Bu sessiyada faoliyat qayd etilmadi</i>"]
 
-        _send_message("\n".join(lines), level="INFO", event_type="exit")
+        msg = "\n".join(lines)
 
     except Exception as exc:
-        frappe.log_error(str(exc), "LMS Bot Exit Notification")
+        frappe.log_error(str(exc), "LMS Bot Exit Notification build")
+        return
+    finally:
+        try:
+            frappe.db.close()
+        except Exception:
+            pass
+
+    # _send_message o'zi connect/close qiladi
+    _send_message(msg, level="INFO", event_type="exit")
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# SECTION 5 — Daily Digest (World-Class Admin Summary)
+# SECTION 5 — Daily Digest
 # ════════════════════════════════════════════════════════════════════════════
 
 def send_daily_digest() -> None:
-    """
-    Scheduler job — runs daily at 21:00.
-    Sends aggregated daily summary to all admins who opted in.
-
-    Industry standard pattern (Datadog/Slack/GitHub digest):
-      - Total active users today
-      - Total learning time
-      - Lessons completed
-      - Quiz pass/fail rates
-      - Top active learners
-      - Users who didn't log in
-    """
     try:
-        today_date = today()
-        today_start = f"{today_date} 00:00:00"
-        today_end = f"{today_date} 23:59:59"
+        frappe.connect()
 
-        # ── Active users today ────────────────────────────────────────────
+        today_date  = today()
+        today_start = f"{today_date} 00:00:00"
+        today_end   = f"{today_date} 23:59:59"
+
         active_users = frappe.db.sql(
             """
             SELECT COUNT(DISTINCT tl.employee) AS cnt
@@ -605,7 +546,6 @@ def send_daily_digest() -> None:
         )
         active_count = active_users[0].cnt if active_users else 0
 
-        # ── Total learning time ───────────────────────────────────────────
         time_row = frappe.db.sql(
             """
             SELECT COALESCE(SUM(duration_sec), 0) AS total_sec
@@ -615,11 +555,10 @@ def send_daily_digest() -> None:
             (today_start, today_end),
             as_dict=True,
         )
-        total_sec = int(time_row[0].total_sec if time_row else 0)
+        total_sec   = int(time_row[0].total_sec if time_row else 0)
         total_hours = total_sec // 3600
-        total_mins = (total_sec % 3600) // 60
+        total_mins  = (total_sec % 3600) // 60
 
-        # ── Lessons completed today ───────────────────────────────────────
         lessons_done = frappe.db.sql(
             """
             SELECT COUNT(*) AS cnt
@@ -632,7 +571,6 @@ def send_daily_digest() -> None:
         )
         lessons_completed = lessons_done[0].cnt if lessons_done else 0
 
-        # ── Quiz statistics ───────────────────────────────────────────────
         quiz_stats = frappe.db.sql(
             """
             SELECT
@@ -645,18 +583,17 @@ def send_daily_digest() -> None:
             (today_start, today_end),
             as_dict=True,
         )
-        qs = quiz_stats[0] if quiz_stats else {}
-        quiz_total = int(qs.get("total") or 0)
-        quiz_passed = int(qs.get("passed") or 0)
-        quiz_avg = float(qs.get("avg_pct") or 0)
+        qs          = quiz_stats[0] if quiz_stats else {}
+        quiz_total  = int(qs.get("total")   or 0)
+        quiz_passed = int(qs.get("passed")  or 0)
+        quiz_avg    = float(qs.get("avg_pct") or 0)
 
-        # ── Top 5 active learners ─────────────────────────────────────────
         top_learners = frappe.db.sql(
             """
             SELECT
                 e.employee_name,
-                SUM(tl.duration_sec) AS total_sec,
-                COUNT(DISTINCT tl.lesson) AS lessons
+                SUM(tl.duration_sec)        AS total_sec,
+                COUNT(DISTINCT tl.lesson)   AS lessons
             FROM `tabLMS Time Log` tl
             JOIN `tabEmployee` e ON e.name = tl.employee
             WHERE tl.session_start >= %s AND tl.session_start <= %s
@@ -668,7 +605,6 @@ def send_daily_digest() -> None:
             as_dict=True,
         )
 
-        # ── Inactive users (enrolled but no activity today) ───────────────
         inactive_count_row = frappe.db.sql(
             """
             SELECT COUNT(DISTINCT enr.student) AS cnt
@@ -687,7 +623,6 @@ def send_daily_digest() -> None:
         )
         inactive_count = inactive_count_row[0].cnt if inactive_count_row else 0
 
-        # ── Assignments submitted today ───────────────────────────────────
         asgn_stats = frappe.db.sql(
             """
             SELECT
@@ -699,11 +634,10 @@ def send_daily_digest() -> None:
             (today_start, today_end),
             as_dict=True,
         )
-        asgn = asgn_stats[0] if asgn_stats else {}
-        asgn_total = int(asgn.get("total") or 0)
+        asgn         = asgn_stats[0] if asgn_stats else {}
+        asgn_total   = int(asgn.get("total")   or 0)
         asgn_pending = int(asgn.get("pending") or 0)
 
-        # ── Build digest message ──────────────────────────────────────────
         date_fmt = format_datetime(now_datetime(), "dd.MM.yyyy")
 
         lines = [
@@ -719,16 +653,16 @@ def send_daily_digest() -> None:
         if quiz_total:
             lines += [
                 "",
-                f"📝 <b>Testlar:</b>",
+                "📝 <b>Testlar:</b>",
                 f"  Jami urinishlar: {quiz_total}",
-                f"  O'tganlar: {quiz_passed} ({round(quiz_passed/quiz_total*100) if quiz_total else 0}%)",
+                f"  O'tganlar: {quiz_passed} ({round(quiz_passed / quiz_total * 100) if quiz_total else 0}%)",
                 f"  O'rtacha ball: {quiz_avg}%",
             ]
 
         if asgn_total:
             lines += [
                 "",
-                f"📎 <b>Topshiriqlar:</b>",
+                "📎 <b>Topshiriqlar:</b>",
                 f"  Jami yuborilgan: {asgn_total}",
                 f"  Tekshirilmagan: {asgn_pending}",
             ]
@@ -737,17 +671,12 @@ def send_daily_digest() -> None:
             lines += ["", "🏆 <b>Eng faol o'quvchilar:</b>"]
             for i, tl in enumerate(top_learners, 1):
                 medals = {1: "🥇", 2: "🥈", 3: "🥉"}
-                medal = medals.get(i, f"  {i}.")
-                t_min = int(tl.total_sec or 0) // 60
-                lines.append(
-                    f"  {medal} {tl.employee_name} — {t_min}d · {tl.lessons} dars"
-                )
+                medal  = medals.get(i, f"  {i}.")
+                t_min  = int(tl.total_sec or 0) // 60
+                lines.append(f"  {medal} {tl.employee_name} — {t_min}d · {tl.lessons} dars")
 
         if inactive_count > 0 and active_count == 0:
-            lines += [
-                "",
-                "⚠️ <i>Bugun hech kim tizimga kirmadi!</i>",
-            ]
+            lines += ["", "⚠️ <i>Bugun hech kim tizimga kirmadi!</i>"]
 
         lines += [
             "",
@@ -755,25 +684,26 @@ def send_daily_digest() -> None:
             "<i>📈 Pro LMS — Kunlik avtomatik hisobot</i>",
         ]
 
-        _send_message("\n".join(lines), level="INFO", event_type="digest")
+        msg = "\n".join(lines)
 
     except Exception as exc:
-        frappe.log_error(str(exc), "LMS Bot Daily Digest")
+        frappe.log_error(str(exc), "LMS Bot Daily Digest build")
+        return
+    finally:
+        try:
+            frappe.db.close()
+        except Exception:
+            pass
+
+    # _send_message o'zi connect/close qiladi
+    _send_message(msg, level="INFO", event_type="digest")
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# SECTION 6 — Login Hook (redirect ONLY)
-# hooks.py:  on_login = "pro_lms.lms_for_dbr.bot.notifications.on_user_login"
+# SECTION 6 — Login Hook
 # ════════════════════════════════════════════════════════════════════════════
 
 def on_user_login(login_manager) -> None:
-    """
-    Entry notification is NOT sent here.
-    Reason: on_login fires only on explicit form login.
-    Cookie-resume sessions bypass this entirely.
-    Entry is handled by session_tracker.on_page_open() via JS.
-    This hook exists only for redirect logic.
-    """
     try:
         if login_manager.user in ("Administrator", "Guest"):
             return
