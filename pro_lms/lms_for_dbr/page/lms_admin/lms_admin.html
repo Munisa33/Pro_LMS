@@ -1,191 +1,694 @@
-<div id="lms-admin-container" class="p-4">
-    <div id="lms-admin-content">
-        <p>LMS Admin sahifasi yuklanmoqda...</p>
-    </div>
+<!DOCTYPE html>
+<html lang="uz" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LMS Admin — v5.0 Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ─── TOKENS ─────────────────────────────────────────────────── */
+:root{
+--lms-bg:#EFF2F7;--lms-surface:#fff;--lms-surface-2:#F7F9FC;--lms-surface-3:#EEF2F8;
+--lms-border:#DDE3EE;--lms-border-soft:#EBF0F8;--lms-border-strong:#C8D4E8;
+--lms-text-primary:#0A1628;--lms-text-secondary:#3D5175;--lms-text-muted:#7A90B0;
+--lms-accent:#1A56FF;--lms-accent-hover:#0F45E8;--lms-accent-soft:#EBF0FF;
+--lms-accent-glow:rgba(26,86,255,.16);--lms-accent-border:rgba(26,86,255,.28);
+--lms-green:#059669;--lms-green-soft:#ECFDF5;--lms-green-border:#A7F3D0;--lms-green-text:#064E3B;
+--lms-orange:#D97706;--lms-orange-soft:#FFFBEB;--lms-orange-border:#FCD34D;--lms-orange-text:#78350F;
+--lms-red:#DC2626;--lms-red-soft:#FEF2F2;--lms-red-border:#FCA5A5;--lms-red-text:#7F1D1D;
+--lms-purple:#7C3AED;--lms-purple-soft:#F5F3FF;--lms-purple-border:#C4B5FD;--lms-purple-text:#4C1D95;
+--lms-cyan:#0891B2;
+--lms-kpi-default-bg:#fff;--lms-kpi-default-bd:#DDE3EE;
+--lms-kpi-green-bg:linear-gradient(135deg,#ECFDF5,#F0FFF8);--lms-kpi-green-bd:#A7F3D0;--lms-kpi-green-val:#059669;
+--lms-kpi-orange-bg:linear-gradient(135deg,#FFFBEB,#FFF8E1);--lms-kpi-orange-bd:#FCD34D;--lms-kpi-orange-val:#D97706;
+--lms-kpi-red-bg:linear-gradient(135deg,#FEF2F2,#FFF0F0);--lms-kpi-red-bd:#FCA5A5;--lms-kpi-red-val:#DC2626;
+--lms-kpi-purple-bg:linear-gradient(135deg,#F5F3FF,#F3F0FF);--lms-kpi-purple-bd:#C4B5FD;--lms-kpi-purple-val:#7C3AED;
+--lms-shadow-xs:0 1px 2px rgba(10,22,40,.04);
+--lms-shadow-sm:0 1px 4px rgba(10,22,40,.06),0 2px 6px rgba(10,22,40,.04);
+--lms-shadow-md:0 4px 16px rgba(10,22,40,.08),0 2px 6px rgba(10,22,40,.04);
+--lms-shadow-lg:0 12px 36px rgba(10,22,40,.12),0 4px 12px rgba(10,22,40,.06);
+--lms-shadow-accent:0 4px 20px rgba(26,86,255,.22),0 2px 8px rgba(26,86,255,.12);
+--lms-r-sm:8px;--lms-r-md:12px;--lms-r-lg:16px;--lms-r-xl:22px;
+--lms-t:200ms cubic-bezier(.4,0,.2,1);--lms-t-spring:400ms cubic-bezier(0.34,1.56,0.64,1);
+--lms-scrollbar-thumb:#C8D4E8;
+}
+[data-theme="dark"]{
+--lms-bg:#060C18;--lms-surface:#0D1626;--lms-surface-2:#132035;--lms-surface-3:#182840;
+--lms-border:#1E3252;--lms-border-soft:#162845;--lms-border-strong:#2A4570;
+--lms-text-primary:#E6EEFF;--lms-text-secondary:#8AAED4;--lms-text-muted:#4A6A90;
+--lms-accent:#38BDF8;--lms-accent-hover:#7DD3F8;--lms-accent-soft:rgba(56,189,248,.10);
+--lms-accent-glow:rgba(56,189,248,.20);--lms-accent-border:rgba(56,189,248,.26);
+--lms-green:#34D399;--lms-green-soft:rgba(52,211,153,.10);--lms-green-border:rgba(52,211,153,.28);--lms-green-text:#6EE7B7;
+--lms-orange:#FBBF24;--lms-orange-soft:rgba(251,191,36,.10);--lms-orange-border:rgba(251,191,36,.28);--lms-orange-text:#FDE68A;
+--lms-red:#F87171;--lms-red-soft:rgba(248,113,113,.10);--lms-red-border:rgba(248,113,113,.28);--lms-red-text:#FCA5A5;
+--lms-purple:#A78BFA;--lms-purple-soft:rgba(167,139,250,.10);--lms-purple-border:rgba(167,139,250,.28);--lms-purple-text:#C4B5FD;
+--lms-cyan:#22D3EE;
+--lms-kpi-default-bg:#0D1626;--lms-kpi-default-bd:#1E3252;
+--lms-kpi-green-bg:linear-gradient(135deg,rgba(52,211,153,.08),rgba(52,211,153,.04));--lms-kpi-green-bd:rgba(52,211,153,.22);--lms-kpi-green-val:#34D399;
+--lms-kpi-orange-bg:linear-gradient(135deg,rgba(251,191,36,.08),rgba(251,191,36,.04));--lms-kpi-orange-bd:rgba(251,191,36,.22);--lms-kpi-orange-val:#FBBF24;
+--lms-kpi-red-bg:linear-gradient(135deg,rgba(248,113,113,.08),rgba(248,113,113,.04));--lms-kpi-red-bd:rgba(248,113,113,.22);--lms-kpi-red-val:#F87171;
+--lms-kpi-purple-bg:linear-gradient(135deg,rgba(167,139,250,.08),rgba(167,139,250,.04));--lms-kpi-purple-bd:rgba(167,139,250,.22);--lms-kpi-purple-val:#A78BFA;
+--lms-shadow-xs:0 1px 2px rgba(0,0,0,.30);
+--lms-shadow-sm:0 1px 6px rgba(0,0,0,.40),0 2px 8px rgba(0,0,0,.24);
+--lms-shadow-md:0 4px 20px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.30);
+--lms-shadow-lg:0 12px 40px rgba(0,0,0,.70),0 4px 16px rgba(0,0,0,.40);
+--lms-shadow-accent:0 4px 20px rgba(56,189,248,.22),0 2px 8px rgba(56,189,248,.12);
+--lms-scrollbar-thumb:#1E3252;
+}
+
+/* ─── RESET ───────────────────────────────────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:&#39;DM Sans&#39;,-apple-system,BlinkMacSystemFont,sans-serif;
+background:var(--lms-bg);color:var(--lms-text-primary);transition:background .3s,color .2s}
+
+/* ─── FAKE FRAPPE NAV ─────────────────────────────────────────── */
+.f-nav{
+  height:52px;background:var(--lms-surface);border-bottom:1px solid var(--lms-border);
+  display:flex;align-items:center;padding:0 20px;gap:16px;
+  position:sticky;top:0;z-index:100;box-shadow:var(--lms-shadow-xs);
+  backdrop-filter:blur(12px);
+}
+.f-nav-logo{font-family:&#39;Sora&#39;,sans-serif;font-size:16px;font-weight:800;
+  color:var(--lms-accent);letter-spacing:-.03em;}
+.f-nav-title{font-size:15px;font-weight:700;color:var(--lms-text-primary);}
+.f-nav-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
+
+/* ─── BODY LAYOUT ─────────────────────────────────────────────── */
+.lms-admin-wrap{
+  width:100%;min-height:calc(100vh - 52px);
+  background:var(--lms-bg);
+  padding:clamp(16px,2vw,28px) clamp(18px,2.5vw,34px);
+  box-sizing:border-box;
+  transition:background .3s;
+}
+
+/* ─── TOP BAR ─────────────────────────────────────────────────── */
+.lms-top-bar{
+  display:flex;justify-content:flex-end;align-items:center;
+  gap:8px;margin-bottom:20px;
+}
+.lms-pill-btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:6px 14px;border-radius:99px;
+  border:1.5px solid var(--lms-border);
+  background:var(--lms-surface);
+  color:var(--lms-text-secondary);
+  font-size:12.5px;font-weight:600;font-family:inherit;
+  cursor:pointer;transition:all var(--lms-t);
+  box-shadow:var(--lms-shadow-sm);
+}
+.lms-pill-btn:hover{
+  border-color:var(--lms-accent);color:var(--lms-accent);
+  background:var(--lms-accent-soft);box-shadow:var(--lms-shadow-accent);
+  transform:translateY(-1px);
+}
+
+/* ─── KPI GRID ────────────────────────────────────────────────── */
+.lms-kpi-grid{
+  display:grid;grid-template-columns:repeat(5,1fr);
+  gap:clamp(10px,1.4vw,16px);margin-bottom:clamp(16px,2vw,24px);
+}
+@media(max-width:1200px){.lms-kpi-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:760px){.lms-kpi-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:440px){.lms-kpi-grid{grid-template-columns:1fr}}
+
+.lms-kpi-card{
+  background:var(--lms-kpi-default-bg);
+  border:1px solid var(--lms-kpi-default-bd);
+  border-radius:var(--lms-r-lg);
+  padding:clamp(16px,1.8vw,22px) clamp(14px,1.6vw,20px);
+  box-shadow:var(--lms-shadow-sm);
+  transition:transform var(--lms-t-spring),box-shadow var(--lms-t);
+  position:relative;overflow:hidden;min-width:0;
+  display:flex;flex-direction:column;gap:6px;
+  border-top:3px solid var(--lms-accent);
+  color:var(--lms-accent);
+  animation:kpi-in .3s ease both;
+}
+@keyframes kpi-in{from{opacity:0;transform:scale(.97) translateY(6px)}to{opacity:1;transform:none}}
+.lms-kpi-card:nth-child(1){animation-delay:.00s}
+.lms-kpi-card:nth-child(2){animation-delay:.06s}
+.lms-kpi-card:nth-child(3){animation-delay:.12s}
+.lms-kpi-card:nth-child(4){animation-delay:.18s}
+.lms-kpi-card:nth-child(5){animation-delay:.24s}
+
+.lms-kpi-card::after{
+  content:&#39;&#39;;position:absolute;top:0;right:0;
+  width:56px;height:56px;border-radius:0 var(--lms-r-lg) 0 100%;
+  background:currentColor;opacity:.05;pointer-events:none;
+}
+.lms-kpi-card:hover{transform:translateY(-3px);box-shadow:var(--lms-shadow-md)}
+.lms-kpi-card.green{background:var(--lms-kpi-green-bg);border-color:var(--lms-kpi-green-bd);border-top-color:var(--lms-green);color:var(--lms-green);}
+.lms-kpi-card.orange{background:var(--lms-kpi-orange-bg);border-color:var(--lms-kpi-orange-bd);border-top-color:var(--lms-orange);color:var(--lms-orange);}
+.lms-kpi-card.red{background:var(--lms-kpi-red-bg);border-color:var(--lms-kpi-red-bd);border-top-color:var(--lms-red);color:var(--lms-red);}
+.lms-kpi-card.purple{background:var(--lms-kpi-purple-bg);border-color:var(--lms-kpi-purple-bd);border-top-color:var(--lms-purple);color:var(--lms-purple);}
+
+.lms-kpi-label{font-size:10.5px;font-weight:700;color:var(--lms-text-muted);text-transform:uppercase;letter-spacing:.08em;line-height:1.3;}
+.lms-kpi-value{font-family:&#39;Sora&#39;,&#39;DM Sans&#39;,sans-serif;font-size:clamp(26px,2.8vw,36px);font-weight:800;line-height:1;color:currentColor;letter-spacing:-.025em;}
+.lms-kpi-sub{font-size:11px;color:var(--lms-text-muted);line-height:1.4;margin-top:2px;}
+
+/* ─── TABS ─────────────────────────────────────────────────────── */
+.lms-tabs{
+  display:flex;gap:2px;
+  background:var(--lms-surface);border:1px solid var(--lms-border);
+  border-radius:var(--lms-r-xl);padding:4px;
+  margin-bottom:14px;overflow-x:auto;scrollbar-width:none;
+  box-shadow:var(--lms-shadow-sm);
+}
+.lms-tabs::-webkit-scrollbar{display:none}
+.lms-tab-btn{
+  flex-shrink:0;padding:8px clamp(14px,2.2vw,22px);border:none;
+  border-radius:var(--lms-r-lg);background:transparent;
+  color:var(--lms-text-muted);font-size:clamp(12px,1.3vw,13.5px);font-weight:600;
+  font-family:inherit;cursor:pointer;transition:all var(--lms-t);white-space:nowrap;
+}
+.lms-tab-btn:hover{background:var(--lms-surface-3);color:var(--lms-text-primary)}
+.lms-tab-btn.active{background:var(--lms-accent);color:#fff;font-weight:700;box-shadow:var(--lms-shadow-accent)}
+[data-theme="dark"] .lms-tab-btn.active{color:#060C18}
+
+/* ─── FILTER BAR ───────────────────────────────────────────────── */
+.lms-filter-bar{
+  display:flex;flex-wrap:wrap;align-items:flex-end;
+  gap:clamp(8px,1.4vw,14px);
+  background:var(--lms-surface);border:1px solid var(--lms-border);
+  border-radius:var(--lms-r-lg);padding:clamp(12px,1.8vw,18px);
+  margin-bottom:14px;box-shadow:var(--lms-shadow-xs);
+}
+.lms-filter-bar>div{display:flex;flex-direction:column;min-width:clamp(110px,13vw,170px);flex:1}
+.lms-filter-bar label{font-size:10.5px;font-weight:700;color:var(--lms-text-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px}
+.lms-filter-bar select,.lms-filter-bar input{
+  padding:8px 32px 8px 11px;border:1.5px solid var(--lms-border);
+  border-radius:var(--lms-r-sm);background:var(--lms-surface-2);
+  color:var(--lms-text-primary);font-size:13px;font-family:inherit;outline:none;
+  width:100%;transition:border-color var(--lms-t),box-shadow var(--lms-t);
+  -webkit-appearance:none;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns=&#39;http://www.w3.org/2000/svg&#39; width=&#39;10&#39; height=&#39;6&#39;%3E%3Cpath d=&#39;M1 1l4 4 4-4&#39; stroke=&#39;%238AAED4&#39; stroke-width=&#39;1.5&#39; fill=&#39;none&#39; stroke-linecap=&#39;round&#39;/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;
+}
+.lms-filter-bar select:focus,.lms-filter-bar input:focus{
+  border-color:var(--lms-accent);box-shadow:0 0 0 3px var(--lms-accent-glow);background:var(--lms-surface);
+}
+
+/* ─── TABLE ────────────────────────────────────────────────────── */
+.lms-table-wrap{
+  overflow-x:auto;border-radius:var(--lms-r-lg);
+  border:1px solid var(--lms-border);box-shadow:var(--lms-shadow-sm);
+  background:var(--lms-surface);
+}
+.lms-table{
+  width:100%;border-collapse:collapse;font-size:13px;
+  color:var(--lms-text-primary);background:var(--lms-surface);font-family:inherit;
+}
+.lms-table thead{position:sticky;top:0;z-index:2}
+.lms-table thead tr{background:var(--lms-surface-3);border-bottom:2px solid var(--lms-border)}
+.lms-table th{padding:12px 14px;font-size:10.5px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--lms-text-muted);white-space:nowrap;text-align:left;background:var(--lms-surface-3)}
+.lms-table tbody tr{border-bottom:1px solid var(--lms-border-soft);transition:background .12s;background:var(--lms-surface);animation:row-in .2s ease both}
+@keyframes row-in{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:none}}
+.lms-table tbody tr:nth-child(1){animation-delay:.02s}
+.lms-table tbody tr:nth-child(2){animation-delay:.05s}
+.lms-table tbody tr:nth-child(3){animation-delay:.08s}
+.lms-table tbody tr:nth-child(4){animation-delay:.11s}
+.lms-table tbody tr:last-child{border-bottom:none}
+.lms-table tbody tr:hover{background:var(--lms-surface-2)}
+.lms-table td{padding:12px 14px;vertical-align:middle;color:var(--lms-text-primary)}
+.lms-table td a{color:var(--lms-accent);text-decoration:none;font-weight:500}
+.lms-table td a:hover{opacity:.75;text-decoration:underline}
+.cb-col{width:36px;text-align:center}
+.cb-col input{width:15px;height:15px;accent-color:var(--lms-accent);cursor:pointer}
+
+/* ─── BADGES ───────────────────────────────────────────────────── */
+.lms-badge{
+  display:inline-flex;align-items:center;gap:4px;padding:3px 9px;
+  border-radius:99px;font-size:11px;font-weight:700;white-space:nowrap;
+  background:var(--lms-surface-3);color:var(--lms-text-secondary);
+  border:1.5px solid var(--lms-border);
+}
+.lms-badge-pending{background:var(--lms-orange-soft);color:var(--lms-orange-text);border-color:var(--lms-orange-border)}
+.lms-badge-approved{background:var(--lms-green-soft);color:var(--lms-green-text);border-color:var(--lms-green-border)}
+.lms-badge-rejected{background:var(--lms-red-soft);color:var(--lms-red-text);border-color:var(--lms-red-border)}
+[data-theme="dark"] .lms-badge-pending{background:rgba(251,191,36,.12);color:var(--lms-orange-text);border-color:var(--lms-orange-border)}
+[data-theme="dark"] .lms-badge-approved{background:rgba(52,211,153,.12);color:var(--lms-green-text);border-color:var(--lms-green-border)}
+[data-theme="dark"] .lms-badge-rejected{background:rgba(248,113,113,.12);color:var(--lms-red-text);border-color:var(--lms-red-border)}
+
+/* ─── BUTTONS ──────────────────────────────────────────────────── */
+.lms-btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:7px 15px;border:1.5px solid var(--lms-border);border-radius:var(--lms-r-sm);
+  font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;
+  transition:all var(--lms-t);white-space:nowrap;outline:none;
+  background:var(--lms-surface-2);color:var(--lms-text-primary);
+}
+.lms-btn:hover{transform:translateY(-1px);box-shadow:var(--lms-shadow-sm)}
+.lms-btn-sm{padding:5px 11px;font-size:12px}
+.lms-btn-primary{background:var(--lms-accent);color:#fff;border-color:var(--lms-accent);box-shadow:var(--lms-shadow-accent)}
+.lms-btn-primary:hover{background:var(--lms-accent-hover)}
+[data-theme="dark"] .lms-btn-primary{color:#060C18}
+.lms-btn-success{background:var(--lms-green-soft);color:var(--lms-green-text);border-color:var(--lms-green-border)}
+.lms-btn-success:hover{background:var(--lms-green);color:#fff;border-color:var(--lms-green)}
+[data-theme="dark"] .lms-btn-success{background:rgba(52,211,153,.12);color:var(--lms-green)}
+.lms-btn-danger{background:var(--lms-red-soft);color:var(--lms-red-text);border-color:var(--lms-red-border)}
+.lms-btn-danger:hover{background:var(--lms-red);color:#fff}
+[data-theme="dark"] .lms-btn-danger{background:rgba(248,113,113,.12);color:var(--lms-red)}
+.lms-btn-secondary{background:var(--lms-surface-2);color:var(--lms-text-secondary);border-color:var(--lms-border)}
+
+/* ─── INPUTS ───────────────────────────────────────────────────── */
+.lms-score-input,.lms-feedback-input{
+  padding:7px 10px;border:1.5px solid var(--lms-border);border-radius:var(--lms-r-sm);
+  background:var(--lms-surface-2);color:var(--lms-text-primary);font-size:12px;font-family:inherit;
+  transition:border-color var(--lms-t),box-shadow var(--lms-t);outline:none;box-sizing:border-box;
+}
+.lms-score-input{width:88px}
+.lms-feedback-input{width:150px}
+.lms-score-input:focus,.lms-feedback-input:focus{
+  border-color:var(--lms-accent);box-shadow:0 0 0 3px var(--lms-accent-glow);background:var(--lms-surface)
+}
+input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none}
+
+/* ─── PROGRESS ─────────────────────────────────────────────────── */
+.lms-prog-bar{height:6px;background:var(--lms-surface-3);border-radius:99px;overflow:hidden;min-width:60px}
+.lms-prog-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--lms-accent),color-mix(in srgb,var(--lms-accent) 70%,transparent));transition:width .7s cubic-bezier(.4,0,.2,1)}
+.lms-prog-fill.green{background:linear-gradient(90deg,var(--lms-green),color-mix(in srgb,var(--lms-green) 60%,transparent))}
+.lms-prog-fill.orange{background:linear-gradient(90deg,var(--lms-orange),color-mix(in srgb,var(--lms-orange) 60%,transparent))}
+
+/* ─── PAGINATION ───────────────────────────────────────────────── */
+.lms-pagination{display:flex;align-items:center;gap:4px;flex-wrap:wrap;padding:14px 0;justify-content:center}
+.lms-page-info{font-size:12px;color:var(--lms-text-muted);margin-right:8px;font-weight:500}
+.lms-page-btn{min-width:34px;height:34px;padding:0 8px;border:1.5px solid var(--lms-border);border-radius:var(--lms-r-sm);background:var(--lms-surface);color:var(--lms-text-secondary);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;transition:all var(--lms-t)}
+.lms-page-btn:hover{border-color:var(--lms-accent);color:var(--lms-accent);background:var(--lms-accent-soft)}
+.lms-page-btn.active{background:var(--lms-accent);border-color:var(--lms-accent);color:#fff;font-weight:700;box-shadow:var(--lms-shadow-accent)}
+[data-theme="dark"] .lms-page-btn.active{color:#060C18}
+
+/* ─── EMPTY ─────────────────────────────────────────────────────── */
+.lms-empty{display:flex;align-items:center;justify-content:center;gap:10px;padding:60px 20px;color:var(--lms-text-muted);font-size:14px;background:var(--lms-surface);border-radius:var(--lms-r-lg);border:1px dashed var(--lms-border)}
+
+/* ─── SPINNER ───────────────────────────────────────────────────── */
+.lms-spinner{display:inline-block;width:18px;height:18px;border:2.5px solid var(--lms-border);border-top-color:var(--lms-accent);border-radius:50%;animation:spin .65s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ─── SECTION TITLE ─────────────────────────────────────────────── */
+.lms-section-title{font-size:14.5px;font-weight:700;color:var(--lms-text-primary);margin:24px 0 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;letter-spacing:-.01em}
+.lms-source-tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700;background:var(--lms-surface-3);color:var(--lms-text-muted);border:1px solid var(--lms-border);text-transform:uppercase;letter-spacing:.05em}
+
+/* ─── SCROLLBAR ─────────────────────────────────────────────────── */
+*{scrollbar-width:thin;scrollbar-color:var(--lms-scrollbar-thumb) transparent}
+*::-webkit-scrollbar{width:5px;height:5px}
+*::-webkit-scrollbar-thumb{background:var(--lms-scrollbar-thumb);border-radius:99px}
+
+/* ─── THEME TRANSITION ──────────────────────────────────────────── */
+html{transition:none}
+html.lms-theme-transitioning *{transition-duration:.02s !important}
+
+/* ─── DEMO BANNER ───────────────────────────────────────────────── */
+.demo-banner{
+  background:linear-gradient(135deg,var(--lms-accent-soft),transparent);
+  border:1px solid var(--lms-accent-border);border-radius:var(--lms-r-lg);
+  padding:10px 16px;margin-bottom:18px;font-size:12.5px;
+  color:var(--lms-text-secondary);display:flex;align-items:center;gap:8px;
+}
+.demo-banner strong{color:var(--lms-accent)}
+</style>
+</head>
+<body>
+
+<!-- FAKE FRAPPE NAV -->
+<div class="f-nav">
+  <div class="f-nav-logo">Ε</div>
+  <div class="f-nav-title">LMS Admin Panel</div>
+  <div class="f-nav-right">
+    <span style="font-size:12px;color:var(--lms-text-muted)">Search or type a command</span>
+  </div>
 </div>
 
-<style>
-/* ═══════════════════════════════════════════════════════════════
-   LMS ADMIN — ADDITIONAL STYLES (Tab 3 + Bug fixes)
-   Appended to existing stylesheet. No overwrites of base styles.
-═══════════════════════════════════════════════════════════════ */
+<!-- MAIN WRAPPER -->
+<div class="lms-admin-wrap">
 
-/* ── Skeleton loader ─────────────────────────────────────────── */
-@keyframes lms-shimmer {
-    0%   { background-position: -600px 0; }
-    100% { background-position:  600px 0; }
+  <!-- TOP TOOLBAR -->
+  <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:20px;align-items:center;">
+    <button class="lms-pill-btn" id="densityBtn" onclick="toggleDensity()">⊟ Compact</button>
+    <button class="lms-pill-btn" id="themeBtn" onclick="toggleTheme()">🌙 Dark</button>
+  </div>
+
+  <!-- DEMO BANNER -->
+  <div class="demo-banner">
+    <span>🎨</span>
+    <span>Bu <strong>LMS Admin v5.0</strong> — "Corporate Intelligence" dizayni. Light ↔ Dark toggle bosing.</span>
+  </div>
+
+  <!-- KPI CARDS -->
+  <div class="lms-kpi-grid">
+    <div class="lms-kpi-card">
+      <div class="lms-kpi-label">Aktiv O&#39;quvchilar</div>
+      <div class="lms-kpi-value" data-target="5">5</div>
+      <div class="lms-kpi-sub">Jami enrollment</div>
+    </div>
+    <div class="lms-kpi-card green">
+      <div class="lms-kpi-label">Tugatilgan Kurslar</div>
+      <div class="lms-kpi-value" data-target="2">2</div>
+      <div class="lms-kpi-sub">Tugatilgan enrollment soni</div>
+    </div>
+    <div class="lms-kpi-card orange">
+      <div class="lms-kpi-label">Kutayotgan Topshiriqlar</div>
+      <div class="lms-kpi-value" data-target="2">2</div>
+      <div class="lms-kpi-sub">Tekshirilishi kerak</div>
+    </div>
+    <div class="lms-kpi-card purple">
+      <div class="lms-kpi-label">O&#39;rtacha Quiz Ball</div>
+      <div class="lms-kpi-value" data-target="1.3" data-suffix="%">1.3%</div>
+      <div class="lms-kpi-sub">Barcha urinishlar</div>
+    </div>
+    <div class="lms-kpi-card red">
+      <div class="lms-kpi-label">Baholanmagan Ochiq Savollar</div>
+      <div class="lms-kpi-value" data-target="11">11</div>
+      <div class="lms-kpi-sub">✍️ Javob kutmoqda</div>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="lms-tabs">
+    <button class="lms-tab-btn active">📋 Topshiriqlar</button>
+    <button class="lms-tab-btn">✍️ Ochiq Savollar</button>
+    <button class="lms-tab-btn">📊 Hodimlar Progressi</button>
+    <button class="lms-tab-btn">👤 Hodim Profili</button>
+  </div>
+
+  <!-- FILTER BAR -->
+  <div class="lms-filter-bar">
+    <div>
+      <label>Program</label>
+      <select><option>Barcha Programlar</option><option>Onboarding 2024</option><option>Leadership</option></select>
+    </div>
+    <div>
+      <label>Kurs</label>
+      <select><option>Barcha Kurslar</option><option>Excel Asoslari</option><option>Boshqaruv</option></select>
+    </div>
+    <div>
+      <label>Hodim</label>
+      <select><option>Barcha Hodimlar</option><option>Test Employee</option><option>Behzod Moliyachi</option></select>
+    </div>
+    <div>
+      <label>Status</label>
+      <select><option>Pending</option><option>Approved</option><option>Rejected</option><option>All</option></select>
+    </div>
+    <div>
+      <label>Jadvalda qidirish</label>
+      <input type="text" placeholder="🔍  Isim, dars..." oninput="liveSearch(this.value)">
+    </div>
+    <button class="lms-btn lms-btn-primary lms-btn-sm">🔍 Filtr</button>
+    <button class="lms-btn lms-btn-secondary lms-btn-sm">✕ Tozalash</button>
+    <button class="lms-btn lms-btn-secondary lms-btn-sm" onclick="exportCSV()">⬇ CSV</button>
+  </div>
+
+  <!-- TABLE -->
+  <div id="tableWrap" class="lms-table-wrap">
+    <table class="lms-table">
+      <thead>
+        <tr>
+          <th class="cb-col"><input type="checkbox" id="selAll" onchange="selectAll(this)"></th>
+          <th>Hodim</th><th>Dars / Sana</th><th>Fayl</th>
+          <th>Status</th><th>Ball</th><th>Izoh</th>
+          <th>Tasdiqlagan</th><th>Amal</th>
+        </tr>
+      </thead>
+      <tbody id="tBody">
+        <tr>
+          <td class="cb-col"><input type="checkbox" class="row-cb"></td>
+          <td>
+            <div style="font-weight:700;font-size:13px;color:var(--lms-text-primary)">Test Employee</div>
+            <div style="color:var(--lms-text-muted);font-size:11px">IT Bo&#39;lim</div>
+          </td>
+          <td>
+            <div style="font-size:13px;color:var(--lms-text-primary)">Excel Asoslari — 1-dars</div>
+            <div style="color:var(--lms-text-muted);font-size:11px">2026-04-15 13:28</div>
+          </td>
+          <td><a href="#">📎 archive.org</a></td>
+          <td><span class="lms-badge lms-badge-pending">⏳ Pending</span></td>
+          <td><input class="lms-score-input" type="number" min="0" max="100" placeholder="0–100"></td>
+          <td><input class="lms-feedback-input" type="text" placeholder="Izoh (ixtiyoriy)"></td>
+          <td>
+            <div style="font-size:12px;color:var(--lms-text-primary)">—</div>
+            <div style="font-size:11px;color:var(--lms-text-muted)">—</div>
+          </td>
+          <td>
+            <div style="display:flex;gap:6px">
+              <button class="lms-btn lms-btn-success lms-btn-sm">✔</button>
+              <button class="lms-btn lms-btn-danger lms-btn-sm">✕</button>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td class="cb-col"><input type="checkbox" class="row-cb"></td>
+          <td>
+            <div style="font-weight:700;font-size:13px;color:var(--lms-text-primary)">Behzod Moliyachi</div>
+            <div style="color:var(--lms-text-muted);font-size:11px">Moliya Bo&#39;lim</div>
+          </td>
+          <td>
+            <div style="font-size:13px;color:var(--lms-text-primary)">Muammo Mijoz — 3-dars</div>
+            <div style="color:var(--lms-text-muted);font-size:11px">2026-04-14 21:17</div>
+          </td>
+          <td><a href="#">📥 Fayl</a></td>
+          <td><span class="lms-badge lms-badge-pending">⏳ Pending</span></td>
+          <td><input class="lms-score-input" type="number" min="0" max="100" placeholder="0–100"></td>
+          <td><input class="lms-feedback-input" type="text" placeholder="Izoh (ixtiyoriy)"></td>
+          <td>
+            <div style="font-size:12px;color:var(--lms-text-primary)">Administrator</div>
+            <div style="font-size:11px;color:var(--lms-text-muted)">2026-04-14 17:48</div>
+          </td>
+          <td>
+            <div style="display:flex;gap:6px">
+              <button class="lms-btn lms-btn-success lms-btn-sm">✔</button>
+              <button class="lms-btn lms-btn-danger lms-btn-sm">✕</button>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td class="cb-col"><input type="checkbox" class="row-cb"></td>
+          <td>
+            <div style="font-weight:700;font-size:13px;color:var(--lms-text-primary)">Nilufar Toshmatova</div>
+            <div style="color:var(--lms-text-muted);font-size:11px">Marketing</div>
+          </td>
+          <td>
+            <div style="font-size:13px;color:var(--lms-text-primary)">SEO Asoslari — 2-dars</div>
+            <div style="color:var(--lms-text-muted);font-size:11px">2026-04-13 09:40</div>
+          </td>
+          <td><a href="#">🔗 Google Sheets</a></td>
+          <td><span class="lms-badge lms-badge-approved">✅ Approved</span></td>
+          <td><input class="lms-score-input" type="number" value="87" min="0" max="100"></td>
+          <td><input class="lms-feedback-input" type="text" value="Yaxshi ish!"></td>
+          <td>
+            <div style="font-size:12px;color:var(--lms-text-primary)">Administrator</div>
+            <div style="font-size:11px;color:var(--lms-text-muted)">2026-04-13 11:00</div>
+          </td>
+          <td>
+            <div style="display:flex;gap:6px">
+              <button class="lms-btn lms-btn-success lms-btn-sm">✔</button>
+              <button class="lms-btn lms-btn-danger lms-btn-sm">✕</button>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td class="cb-col"><input type="checkbox" class="row-cb"></td>
+          <td>
+            <div style="font-weight:700;font-size:13px;color:var(--lms-text-primary)">Jasur Rahimov</div>
+            <div style="color:var(--lms-text-muted);font-size:11px">HR Bo&#39;lim</div>
+          </td>
+          <td>
+            <div style="font-size:13px;color:var(--lms-text-primary)">Liderlik — 5-dars</div>
+            <div style="color:var(--lms-text-muted);font-size:11px">2026-04-12 14:22</div>
+          </td>
+          <td><a href="#">📥 Fayl</a></td>
+          <td><span class="lms-badge lms-badge-rejected">❌ Rejected</span></td>
+          <td><input class="lms-score-input" type="number" value="32" min="0" max="100"></td>
+          <td><input class="lms-feedback-input" type="text" value="Qayta topshiring"></td>
+          <td>
+            <div style="font-size:12px;color:var(--lms-text-primary)">Administrator</div>
+            <div style="font-size:11px;color:var(--lms-text-muted)">2026-04-12 16:45</div>
+          </td>
+          <td>
+            <div style="display:flex;gap:6px">
+              <button class="lms-btn lms-btn-success lms-btn-sm">✔</button>
+              <button class="lms-btn lms-btn-danger lms-btn-sm">✕</button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- PAGINATION -->
+  <div class="lms-pagination">
+    <span class="lms-page-info">Jami: 4 ta</span>
+    <button class="lms-page-btn active">1</button>
+    <button class="lms-page-btn">2</button>
+    <button class="lms-page-btn">3</button>
+  </div>
+
+  <!-- PROGRESS TAB PREVIEW -->
+  <div class="lms-section-title" style="margin-top:32px">📊 Hodimlar Progressi — namuna</div>
+  <div class="lms-table-wrap">
+    <table class="lms-table">
+      <thead>
+        <tr>
+          <th>Hodim</th><th>Bo&#39;lim</th><th style="text-align:center">Kurslar</th>
+          <th>Progress</th><th style="text-align:center">Quiz</th>
+          <th style="text-align:center">Topshiriqlar</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div style="font-weight:700">Nilufar Toshmatova</div>
+            <div style="color:var(--lms-text-muted);font-size:11px">EMP-0012</div>
+          </td>
+          <td style="color:var(--lms-text-secondary)">Marketing</td>
+          <td style="text-align:center">3</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:8px">
+              <div class="lms-prog-bar" style="flex:1"><div class="lms-prog-fill green" style="width:82%"></div></div>
+              <span style="font-size:12px;min-width:36px">82%</span>
+            </div>
+            <div style="font-size:11px;color:var(--lms-text-muted)">18/22 dars</div>
+          </td>
+          <td style="text-align:center">
+            <span style="font-weight:700;color:var(--lms-green)">91%</span>
+            <div style="font-size:11px;color:var(--lms-text-muted)">3 o&#39;tdi</div>
+          </td>
+          <td style="text-align:center"><span class="lms-badge lms-badge-approved">2✔</span></td>
+        </tr>
+        <tr>
+          <td>
+            <div style="font-weight:700">Jasur Rahimov</div>
+            <div style="color:var(--lms-text-muted);font-size:11px">EMP-0007</div>
+          </td>
+          <td style="color:var(--lms-text-secondary)">HR Bo&#39;lim</td>
+          <td style="text-align:center">2</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:8px">
+              <div class="lms-prog-bar" style="flex:1"><div class="lms-prog-fill orange" style="width:45%"></div></div>
+              <span style="font-size:12px;min-width:36px">45%</span>
+            </div>
+            <div style="font-size:11px;color:var(--lms-text-muted)">9/20 dars</div>
+          </td>
+          <td style="text-align:center">
+            <span style="font-weight:700;color:var(--lms-orange)">52%</span>
+            <div style="font-size:11px;color:var(--lms-text-muted)">1 o&#39;tdi</div>
+          </td>
+          <td style="text-align:center"><span class="lms-badge lms-badge-pending">1 kutmoqda</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- KEYBOARD HINTS -->
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:20px;padding:12px 16px;
+    background:var(--lms-surface);border:1px solid var(--lms-border);border-radius:var(--lms-r-md);
+    font-size:11.5px;color:var(--lms-text-muted);">
+    <span>⌨️ <strong style="color:var(--lms-text-secondary)">Shortcutlar:</strong></span>
+    <span><kbd style="background:var(--lms-surface-3);border:1px solid var(--lms-border);padding:1px 6px;border-radius:4px;font-size:11px">Alt+D</kbd> Dark/Light</span>
+    <span><kbd style="background:var(--lms-surface-3);border:1px solid var(--lms-border);padding:1px 6px;border-radius:4px;font-size:11px">Alt+1–4</kbd> Tab o&#39;zgartirish</span>
+    <span><kbd style="background:var(--lms-surface-3);border:1px solid var(--lms-border);padding:1px 6px;border-radius:4px;font-size:11px">Esc</kbd> Tanlashni tozalash</span>
+    <span><kbd style="background:var(--lms-surface-3);border:1px solid var(--lms-border);padding:1px 6px;border-radius:4px;font-size:11px">⬇ CSV</kbd> Eksport</span>
+  </div>
+
+</div><!-- /lms-admin-wrap -->
+
+<script>
+// Theme toggle
+function toggleTheme() {
+  const html = document.documentElement;
+  const isDark = html.getAttribute(&#39;data-theme&#39;) === &#39;dark&#39;;
+
+  // Smooth flash
+  const ov = document.createElement(&#39;div&#39;);
+  ov.style.cssText = `position:fixed;inset:0;z-index:99999;pointer-events:none;opacity:0;transition:opacity .12s ease;background:${isDark?&#39;#EFF2F7&#39;:&#39;#060C18&#39;}`;
+  document.body.appendChild(ov);
+  requestAnimationFrame(()=>{
+    ov.style.opacity=&#39;.35&#39;;
+    setTimeout(()=>{
+      html.setAttribute(&#39;data-theme&#39;, isDark ? &#39;light&#39; : &#39;dark&#39;);
+      document.getElementById(&#39;themeBtn&#39;).textContent = isDark ? &#39;🌙 Dark&#39; : &#39;☀️ Light&#39;;
+      ov.style.opacity=&#39;0&#39;;
+      setTimeout(()=>ov.remove(),150);
+    },100);
+  });
 }
 
-.lms-skeleton {
-    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-    background-size: 600px 100%;
-    animation: lms-shimmer 1.4s infinite linear;
-    border-radius: 4px;
+// Density
+let dense = false;
+function toggleDensity() {
+  dense = !dense;
+  document.querySelector(&#39;.lms-table&#39;).style.fontSize = dense ? &#39;11.5px&#39; : &#39;&#39;;
+  document.querySelectorAll(&#39;.lms-table th, .lms-table td&#39;).forEach(el => {
+    el.style.padding = dense ? &#39;6px 12px&#39; : &#39;&#39;;
+  });
+  document.getElementById(&#39;densityBtn&#39;).textContent = dense ? &#39;⊞ Normal&#39; : &#39;⊟ Compact&#39;;
 }
 
-.lms-skeleton-line {
-    height: 14px;
-    margin-bottom: 10px;
-    width: 100%;
-}
-.lms-skeleton-line:last-child  { width: 60%; }
-.lms-skeleton-line:first-child { width: 80%; }
+// Tab switch
+document.querySelectorAll(&#39;.lms-tab-btn&#39;).forEach(btn => {
+  btn.addEventListener(&#39;click&#39;, () => {
+    document.querySelectorAll(&#39;.lms-tab-btn&#39;).forEach(b => b.classList.remove(&#39;active&#39;));
+    btn.classList.add(&#39;active&#39;);
+  });
+});
 
-.lms-skeleton-avatar {
-    width: 72px;
-    height: 72px;
-    border-radius: 50%;
-    flex-shrink: 0;
-}
-
-.lms-skeleton-block {
-    padding: 16px;
-    background: #fff;
-    border-radius: 10px;
-    margin-bottom: 16px;
-    display: flex;
-    gap: 16px;
-    align-items: flex-start;
+// Live search
+function liveSearch(q) {
+  q = q.toLowerCase();
+  document.querySelectorAll(&#39;#tBody tr&#39;).forEach(row => {
+    row.style.display = !q || row.textContent.toLowerCase().includes(q) ? &#39;&#39; : &#39;none&#39;;
+  });
 }
 
-/* ── Accordion (details/summary) ─────────────────────────────── */
-.lms-accordion {
-    border: 1px solid #e8eaf0;
-    border-radius: 10px;
-    margin-bottom: 10px;
-    overflow: hidden;
-    background: #fff;
+// Select all
+function selectAll(cb) {
+  document.querySelectorAll(&#39;.row-cb&#39;).forEach(r => r.checked = cb.checked);
 }
 
-.lms-accordion-summary {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 14px 18px;
-    cursor: pointer;
-    list-style: none;
-    font-size: 14px;
-    font-weight: 600;
-    background: #fafbff;
-    border-bottom: 1px solid transparent;
-    user-select: none;
-    transition: background 0.15s;
-}
-.lms-accordion[open] .lms-accordion-summary {
-    border-bottom-color: #e8eaf0;
-    background: #f3f4ff;
-}
-.lms-accordion-summary::-webkit-details-marker { display: none; }
-.lms-accordion-summary::before {
-    content: "\25B6";
-    font-size: 10px;
-    color: #9fa8da;
-    transition: transform 0.2s;
-}
-.lms-accordion[open] .lms-accordion-summary::before {
-    transform: rotate(90deg);
+// CSV export
+function exportCSV() {
+  const table = document.querySelector(&#39;.lms-table&#39;);
+  const rows = [...table.querySelectorAll(&#39;tr&#39;)].map(row => {
+    const cells = [...row.querySelectorAll(&#39;th,td&#39;)].map(c => {
+      const clone = c.cloneNode(true);
+      clone.querySelectorAll(&#39;input,button&#39;).forEach(e=>e.remove());
+      return &#39;"&#39;+clone.textContent.trim().replace(/"/g,&#39;""&#39;)+&#39;"&#39;;
+    });
+    return cells.join(&#39;,&#39;);
+  });
+  const csv = &#39;\uFEFF&#39;+rows.join(&#39;\n&#39;);
+  const a = document.createElement(&#39;a&#39;);
+  a.href = URL.createObjectURL(new Blob([csv],{type:&#39;text/csv;charset=utf-8;&#39;}));
+  a.download = &#39;lms_export_&#39;+new Date().toISOString().slice(0,10)+&#39;.csv&#39;;
+  a.click();
 }
 
-.lms-accordion-title { color: #3949ab; }
-.lms-accordion-body  { padding: 16px; }
+// KPI count-up animation
+document.querySelectorAll(&#39;.lms-kpi-value[data-target]&#39;).forEach(el => {
+  const target = parseFloat(el.dataset.target);
+  const suffix = el.dataset.suffix || &#39;&#39;;
+  let start = 0;
+  const dur = 1200;
+  const t0 = performance.now();
+  const tick = now => {
+    const p = Math.min((now-t0)/dur,1);
+    const ease = 1-Math.pow(2,-10*p);
+    const cur = start + (target-start)*ease;
+    el.textContent = (Number.isInteger(target)?Math.round(cur):cur.toFixed(1))+suffix;
+    if(p<1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+});
 
-/* ── Quiz answer rows ────────────────────────────────────────── */
-.lms-quiz-correct,
-.lms-quiz-wrong {
-    padding: 10px 14px;
-    border-radius: 6px;
-    margin-bottom: 8px;
-    border-left: 4px solid;
-    font-size: 13px;
-    line-height: 1.5;
-}
-.lms-quiz-correct {
-    background: #E8F5E9;
-    border-left-color: #43A047;
-}
-.lms-quiz-wrong {
-    background: #FFEBEE;
-    border-left-color: #E53935;
-}
-.lms-quiz-q          { font-weight: 600; margin-bottom: 4px; color: #333; }
-.lms-quiz-ans        { color: #555; margin-bottom: 2px; }
-.lms-quiz-correct-ans { color: #2e7d32; font-size: 12px; }
-
-/* ── Audit row ───────────────────────────────────────────────── */
-.lms-audit-row td:nth-child(6),
-.lms-audit-row td:nth-child(7) {
-    font-size: 12px;
-    color: #5c6bc0;
-}
-
-/* ── Profile header ──────────────────────────────────────────── */
-.lms-profile-selector {
-    background: #fff;
-    border-radius: 10px;
-    padding: 18px 20px;
-    margin-bottom: 20px;
-    border: 1px solid #e8eaf0;
-}
-.lms-profile-selector-label {
-    display: block;
-    font-size: 12px;
-    font-weight: 600;
-    color: #888;
-    margin-bottom: 8px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.lms-profile-header {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-    background: linear-gradient(135deg, #3949ab 0%, #5c6bc0 100%);
-    border-radius: 12px;
-    padding: 20px 24px;
-    margin-bottom: 20px;
-    color: #fff;
-}
-.lms-profile-avatar {
-    width: 72px;
-    height: 72px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 3px solid rgba(255,255,255,0.4);
-    flex-shrink: 0;
-}
-.lms-profile-meta   { flex: 1; }
-.lms-profile-name   { font-size: 20px; font-weight: 700; }
-.lms-profile-sub    { font-size: 13px; opacity: 0.85; margin-top: 2px; }
-
-/* ── Chart container ─────────────────────────────────────────── */
-.lms-chart-wrap {
-    background: #fff;
-    border-radius: 10px;
-    border: 1px solid #e8eaf0;
-    padding: 16px;
-    margin-bottom: 20px;
-    overflow: hidden;
-}
-
-/* ── Section title ───────────────────────────────────────────── */
-.lms-section-title {
-    font-size: 15px;
-    font-weight: 700;
-    color: #3949ab;
-    margin: 20px 0 10px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-.lms-source-tag {
-    font-size: 10px;
-    font-weight: 500;
-    background: #e8eaf6;
-    color: #5c6bc0;
-    padding: 2px 7px;
-    border-radius: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-</style>
+// Keyboard shortcuts
+document.addEventListener(&#39;keydown&#39;, e => {
+  if(e.altKey && e.key===&#39;d&#39;) toggleTheme();
+  if(e.altKey && [&#39;1&#39;,&#39;2&#39;,&#39;3&#39;,&#39;4&#39;].includes(e.key)){
+    const tabs = document.querySelectorAll(&#39;.lms-tab-btn&#39;);
+    if(tabs[parseInt(e.key)-1]) tabs[parseInt(e.key)-1].click();
+  }
+});
+</script>
+</body>
+</html>

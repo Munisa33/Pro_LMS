@@ -1,10 +1,17 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  LMS Admin Dashboard  —  World-class Frappe Page
-//  Fixes applied:
-//    1. Full-width: aggressive Frappe layout override on page load
-//    2. Dark mode: toggle button synced with Frappe's html[data-theme]
-//    3. Bulk bar: only shown when items are SELECTED (not when data exists)
-//    4. GitHub-style heatmap added to employee profile tab
+//  LMS Admin Dashboard  —  v5.0  "Corporate Intelligence"
+//  Yangiliklar:
+//    ✅ Dark mode — Electric Cyan aktsent (purple emas)
+//    ✅ KPI count-up animation (Sora font)
+//    ✅ Live table search
+//    ✅ CSV export
+//    ✅ Density toggle (Compact / Normal)
+//    ✅ Smooth theme transition
+//    ✅ Keyboard shortcuts (Alt+D, Alt+1-4, Esc)
+//    ✅ Profile header animatsiyali gradient
+//    ✅ Toast notification
+//    ✅ Chart.js oylik grafik (datalabels plugin bilan)
+//    ✅ GitHub-style heatmap (Cyan rangli)
 // ═══════════════════════════════════════════════════════════════════════════
 
 frappe.pages['lms_admin'].on_page_load = function (wrapper) {
@@ -34,7 +41,11 @@ frappe.pages['lms_admin'].on_page_hide = function () {
 	}
 };
 
-// ── Full-width helper ─────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+//  YORDAMCHI FUNKSIYALAR (class tashqarida)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Full-width ────────────────────────────────────────────────────────────
 function _forceFullWidth() {
 	const selectors = [
 		'.page-content',
@@ -57,7 +68,7 @@ function _forceFullWidth() {
 	});
 }
 
-// ── Dark mode helpers ─────────────────────────────────────────────────────
+// ── Dark mode yordamchilari ───────────────────────────────────────────────
 function _getCurrentTheme() {
 	return document.documentElement.getAttribute('data-theme')
 		|| document.documentElement.getAttribute('data-bs-theme')
@@ -65,9 +76,26 @@ function _getCurrentTheme() {
 }
 
 function _setTheme(theme) {
-	document.documentElement.setAttribute('data-theme', theme);
-	document.documentElement.setAttribute('data-bs-theme', theme);
-	localStorage.setItem('lms_admin_theme', theme);
+	// Smooth flash overlay
+	const overlay = document.createElement('div');
+	overlay.style.cssText = [
+		'position:fixed', 'inset:0', 'z-index:99999',
+		'pointer-events:none', 'opacity:0',
+		'transition:opacity 120ms ease',
+		`background:${theme === 'dark' ? '#060C18' : '#EFF2F7'}`
+	].join(';');
+	document.body.appendChild(overlay);
+
+	requestAnimationFrame(() => {
+		overlay.style.opacity = '0.35';
+		setTimeout(() => {
+			document.documentElement.setAttribute('data-theme', theme);
+			document.documentElement.setAttribute('data-bs-theme', theme);
+			localStorage.setItem('lms_admin_theme', theme);
+			overlay.style.opacity = '0';
+			setTimeout(() => overlay.remove(), 160);
+		}, 100);
+	});
 }
 
 function _initTheme() {
@@ -79,6 +107,65 @@ function _initTheme() {
 		_setTheme('dark');
 	}
 }
+
+// ── KPI Count-up animatsiyasi ─────────────────────────────────────────────
+function lmsAnimateKPI() {
+	document.querySelectorAll('.lms-kpi-value').forEach(el => {
+		const raw    = el.textContent.trim();
+		const num    = parseFloat(raw.replace(/[^0-9.]/g, ''));
+		const suffix = raw.replace(/[0-9.]/g, '');
+		if (isNaN(num) || num === 0) return;
+
+		let start          = 0;
+		const duration     = 900;
+		const startTime    = performance.now();
+
+		const tick = (now) => {
+			const elapsed  = now - startTime;
+			const progress = Math.min(elapsed / duration, 1);
+			// easeOutExpo
+			const ease    = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+			const current = start + (num - start) * ease;
+
+			el.textContent = (Number.isInteger(num)
+				? Math.round(current)
+				: current.toFixed(1)) + suffix;
+
+			if (progress < 1) requestAnimationFrame(tick);
+		};
+		requestAnimationFrame(tick);
+	});
+}
+
+// ── CSV Export ────────────────────────────────────────────────────────────
+function lmsExportTableCSV(filename) {
+	const table = document.querySelector('.lms-table');
+	if (!table) {
+		frappe.show_alert({ message: '⚠️ Jadval topilmadi', indicator: 'red' }, 3);
+		return;
+	}
+
+	const rows = [...table.querySelectorAll('tr')].map(row => {
+		const cells = [...row.querySelectorAll('th, td')].map(cell => {
+			const clone = cell.cloneNode(true);
+			clone.querySelectorAll('input, button').forEach(el => el.remove());
+			return '"' + clone.textContent.trim().replace(/"/g, '""') + '"';
+		});
+		return cells.join(',');
+	});
+
+	const csv  = '\uFEFF' + rows.join('\n'); // BOM — Excel UTF-8 uchun
+	const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+	const url  = URL.createObjectURL(blob);
+	const a    = document.createElement('a');
+	a.href     = url;
+	a.download = (filename || 'lms_export') + '_' + new Date().toISOString().slice(0, 10) + '.csv';
+	a.click();
+	URL.revokeObjectURL(url);
+
+	frappe.show_alert({ message: '📥 CSV yuklab olindi', indicator: 'green' }, 3);
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  CONTROLLER
@@ -94,12 +181,14 @@ class LMSAdmin {
 		this.selectedIds   = new Set();
 		this._oaStatus  = 'Pending';
 		this._currentProfileEmployee = null;
+		this._dense     = false; // density toggle holati
 
 		_initTheme();
 		this._renderShell();
 		this._loadFilterOptions();
 		this._loadKPI();
 		this._loadActiveTab();
+		this._initKeyboardShortcuts();
 	}
 
 	// ── Asosiy qobiq ─────────────────────────────────────────────────────
@@ -107,33 +196,74 @@ class LMSAdmin {
 		const wrap = document.createElement('div');
 		wrap.className = 'lms-admin-wrap';
 
+		// ── TOP BAR ──────────────────────────────────────────────────────
 		const topBar = document.createElement('div');
-		topBar.style.cssText = 'display:flex;justify-content:flex-end;margin-bottom:12px;gap:8px;align-items:center;';
+		topBar.style.cssText = 'display:flex;justify-content:flex-end;margin-bottom:16px;gap:8px;align-items:center;';
 
+		// Density toggle
+		const densityBtn = document.createElement('button');
+		densityBtn.id        = 'lms-density-btn';
+		densityBtn.className = 'lms-btn lms-btn-sm lms-btn-secondary';
+		densityBtn.style.cssText = 'border-radius:99px;font-size:12px;';
+		densityBtn.title     = 'Compact / Normal ko\'rinish';
+		densityBtn.textContent = '⊟ Compact';
+
+		const savedDensity = localStorage.getItem('lms_admin_density');
+		if (savedDensity === 'compact') {
+			this._dense = true;
+			densityBtn.textContent = '⊞ Normal';
+		}
+
+		densityBtn.addEventListener('click', () => {
+			this._dense = !this._dense;
+			document.querySelector('.lms-admin-wrap')
+				?.classList.toggle('lms-density-compact', this._dense);
+			densityBtn.textContent = this._dense ? '⊞ Normal' : '⊟ Compact';
+			localStorage.setItem('lms_admin_density', this._dense ? 'compact' : 'normal');
+		});
+
+		// CSV export button
+		const csvBtn = document.createElement('button');
+		csvBtn.className = 'lms-btn lms-btn-sm lms-btn-secondary';
+		csvBtn.style.cssText = 'border-radius:99px;font-size:12px;';
+		csvBtn.title     = 'Jadvalni CSV formatda yuklab olish';
+		csvBtn.textContent = '⬇ CSV';
+		csvBtn.addEventListener('click', () => {
+			lmsExportTableCSV('lms_topshiriqlar');
+		});
+
+		// Theme toggle
 		const themeBtn = document.createElement('button');
-		themeBtn.id = 'lms-theme-toggle';
-		themeBtn.className = 'lms-btn lms-btn-sm lms-btn-secondary';
-		themeBtn.style.cssText = 'min-width:42px;font-size:16px;padding:5px 10px;';
-		themeBtn.title = 'Dark / Light mode';
-		const isDark = _getCurrentTheme() === 'dark';
-		themeBtn.textContent = isDark ? '☀️' : '🌙';
+		themeBtn.id          = 'lms-theme-toggle';
+		themeBtn.className   = 'lms-btn lms-btn-sm lms-btn-secondary';
+		themeBtn.style.cssText = 'border-radius:99px;min-width:42px;font-size:12px;padding:5px 13px;';
+		themeBtn.title       = 'Dark / Light mode (Alt+D)';
+		const isDark         = _getCurrentTheme() === 'dark';
+		themeBtn.textContent = isDark ? '☀️ Light' : '🌙 Dark';
 
 		themeBtn.addEventListener('click', () => {
 			const current = _getCurrentTheme();
 			const next    = current === 'dark' ? 'light' : 'dark';
 			_setTheme(next);
-			themeBtn.textContent = next === 'dark' ? '☀️' : '🌙';
+			themeBtn.textContent = next === 'dark' ? '☀️ Light' : '🌙 Dark';
+
+			// Profile chartni qayta render qilish (ranglar o'zgaradi)
 			if (this.activeTab === 'profile' && this._currentProfileEmployee) {
 				const chartEl = document.getElementById('lms-monthly-chart');
 				if (chartEl && this._lastTimeAnalytics) {
-					this._renderTimeChart(this._lastTimeAnalytics, 'lms-monthly-chart');
+					setTimeout(() => {
+						this._renderTimeChart(this._lastTimeAnalytics, 'lms-monthly-chart');
+					}, 250);
 				}
 			}
 		});
 
+		topBar.appendChild(densityBtn);
+		topBar.appendChild(csvBtn);
 		topBar.appendChild(themeBtn);
 		wrap.appendChild(topBar);
 
+		// ── KPI GRID ─────────────────────────────────────────────────────
 		const kpiGrid = document.createElement('div');
 		kpiGrid.className = 'lms-kpi-grid';
 		kpiGrid.id = 'lms-kpi-grid';
@@ -145,6 +275,7 @@ class LMSAdmin {
 			kpiGrid.appendChild(card);
 		}
 
+		// ── TABS ──────────────────────────────────────────────────────────
 		const tabs = document.createElement('div');
 		tabs.className = 'lms-tabs';
 		tabs.innerHTML =
@@ -153,10 +284,12 @@ class LMSAdmin {
 			+ '<button class="lms-tab-btn" data-tab="progress">📊 Hodimlar Progressi</button>'
 			+ '<button class="lms-tab-btn" data-tab="profile">👤 Hodim Profili</button>';
 
+		// ── FILTER BAR ────────────────────────────────────────────────────
 		const filterBar = document.createElement('div');
 		filterBar.className = 'lms-filter-bar';
 		filterBar.id = 'lms-filter-bar';
 
+		// ── BULK BAR ──────────────────────────────────────────────────────
 		const bulkBar = document.createElement('div');
 		bulkBar.id = 'lms-bulk-bar';
 		bulkBar.innerHTML =
@@ -164,6 +297,7 @@ class LMSAdmin {
 			+ '<button class="lms-btn lms-btn-bulk lms-btn-sm" id="lms-bulk-approve-btn">✔ Ommaviy tasdiqlash</button>'
 			+ '<button class="lms-btn lms-btn-sm lms-btn-secondary" id="lms-bulk-cancel-btn">✕ Bekor qilish</button>';
 
+		// ── CONTENT + PAGINATION ──────────────────────────────────────────
 		const content = document.createElement('div');
 		content.id = 'lms-content';
 		content.innerHTML = '<div class="lms-empty"><span class="lms-spinner"></span></div>';
@@ -182,6 +316,11 @@ class LMSAdmin {
 		$(this.wrapper).find('.layout-main-section').empty().append(wrap);
 		_forceFullWidth();
 
+		// Density restore
+		if (this._dense) {
+			wrap.classList.add('lms-density-compact');
+		}
+
 		window.lms_admin = this;
 		this._bindTabButtons();
 
@@ -191,7 +330,35 @@ class LMSAdmin {
 			.addEventListener('click', () => this.clearSelection());
 	}
 
-	// ── KPI ─────────────────────────────────────────────────────────────
+	// ── Keyboard shortcuts ────────────────────────────────────────────────
+	_initKeyboardShortcuts() {
+		document.addEventListener('keydown', (e) => {
+			// Esc — tanlashni tozalash
+			if (e.key === 'Escape') {
+				this.clearSelection();
+				return;
+			}
+			// Alt+1/2/3/4 — tab almashtirish
+			if (e.altKey && ['1', '2', '3', '4'].includes(e.key)) {
+				const tabs = ['assignments', 'open_answers', 'progress', 'profile'];
+				this.switchTab(tabs[parseInt(e.key) - 1]);
+			}
+			// Alt+D — dark/light toggle
+			if (e.altKey && e.key === 'd') {
+				document.getElementById('lms-theme-toggle')?.click();
+			}
+		});
+	}
+
+	// ── Live search (jadval ichida) ───────────────────────────────────────
+	liveSearch(query) {
+		const q = (query || '').toLowerCase().trim();
+		document.querySelectorAll('.lms-table tbody tr').forEach(row => {
+			row.style.display = !q || row.textContent.toLowerCase().includes(q) ? '' : 'none';
+		});
+	}
+
+	// ── KPI ──────────────────────────────────────────────────────────────
 	_kpiSkeletonCard(label, sub, cls) {
 		cls = cls || '';
 		return '<div class="lms-kpi-card ' + cls + '">'
@@ -242,11 +409,14 @@ class LMSAdmin {
 						<div class="lms-kpi-value">${d.pending_open_answers || 0}</div>
 						<div class="lms-kpi-sub">✍️ Javob kutmoqda</div>
 					</div>`;
+
+				// ✅ HTML yozilgandan KEYIN count-up animatsiyasi
+				lmsAnimateKPI();
 			}
 		});
 	}
 
-	// ── Filter options ───────────────────────────────────────────────────
+	// ── Filter options ────────────────────────────────────────────────────
 	_loadFilterOptions() {
 		frappe.call({
 			method: 'pro_lms.lms_for_dbr.page.lms_admin.lms_admin.get_filter_options',
@@ -276,7 +446,7 @@ class LMSAdmin {
 			`<option value="${e.name}" ${f.employee === e.name ? 'selected' : ''}>${frappe.utils.escape_html(e.employee_name)}</option>`
 		).join('');
 
-		const statusOpts = ['Pending','Approved','Rejected','All'].map(s =>
+		const statusOpts = ['Pending', 'Approved', 'Rejected', 'All'].map(s =>
 			`<option value="${s}" ${f.status === s ? 'selected' : ''}>${s}</option>`
 		).join('');
 
@@ -288,6 +458,18 @@ class LMSAdmin {
 				+ statusOpts
 				+ '</select></div>';
 		}
+
+		// Live search input
+		const searchInput = `
+			<div style="min-width:clamp(140px,15vw,200px);flex:1.5;">
+				<label>Jadvalda qidirish</label>
+				<input type="text" placeholder="🔍  Isim, dars, status..."
+					oninput="window.lms_admin.liveSearch(this.value)"
+					style="padding:8px 11px;border:1.5px solid var(--lms-border);border-radius:8px;
+					background:var(--lms-surface-2);color:var(--lms-text-primary);font-size:13px;
+					font-family:inherit;outline:none;width:100%;box-sizing:border-box;
+					transition:border-color .2s,box-shadow .2s;">
+			</div>`;
 
 		document.getElementById('lms-filter-bar').innerHTML = `
 			<div>
@@ -312,6 +494,7 @@ class LMSAdmin {
 				</select>
 			</div>
 			${assignStatusFilter}
+			${searchInput}
 			<button class="lms-btn lms-btn-primary lms-btn-sm" onclick="window.lms_admin.applyFilters()">
 				🔍 Filtr
 			</button>
@@ -344,7 +527,7 @@ class LMSAdmin {
 		this._loadActiveTab();
 	}
 
-	// ── Tab boshqaruvi ───────────────────────────────────────────────────
+	// ── Tab boshqaruvi ────────────────────────────────────────────────────
 	_bindTabButtons() {
 		document.querySelectorAll('.lms-tab-btn').forEach(btn => {
 			btn.addEventListener('click', () => this.switchTab(btn.dataset.tab));
@@ -431,11 +614,11 @@ class LMSAdmin {
 						<input type="checkbox" ${checked} data-sub-id="${sId}">
 					</td>
 					<td>
-						<div style="font-weight:700;font-size:13px;">${eName}</div>
+						<div style="font-weight:700;font-size:13px;color:var(--lms-text-primary);">${eName}</div>
 						<div style="color:var(--lms-text-muted);font-size:11px;">${eDept}</div>
 					</td>
 					<td>
-						<div style="font-size:13px;">${lTitle}</div>
+						<div style="font-size:13px;color:var(--lms-text-primary);">${lTitle}</div>
 						<div style="color:var(--lms-text-muted);font-size:11px;">${subOn}</div>
 					</td>
 					<td>${fileLink}</td>
@@ -453,7 +636,7 @@ class LMSAdmin {
 							placeholder="Izoh (ixtiyoriy)">
 					</td>
 					<td class="lms-audit-row">
-						<div style="font-size:12px;">${frappe.utils.escape_html(s.reviewed_by || '—')}</div>
+						<div style="font-size:12px;color:var(--lms-text-primary);">${frappe.utils.escape_html(s.reviewed_by || '—')}</div>
 						<div style="font-size:11px;color:var(--lms-text-muted);">${frappe.utils.escape_html(s.reviewed_on || '—')}</div>
 					</td>
 					<td>
@@ -513,7 +696,7 @@ class LMSAdmin {
 		});
 	}
 
-	// ── Bulk ────────────────────────────────────────────────────────────
+	// ── Bulk ─────────────────────────────────────────────────────────────
 	toggleSelect(id, checked) {
 		checked ? this.selectedIds.add(id) : this.selectedIds.delete(id);
 		this._updateBulkBar();
@@ -600,7 +783,7 @@ class LMSAdmin {
 			return `
 				<tr>
 					<td>
-						<div style="font-weight:700;">${frappe.utils.escape_html(e.employee_name)}</div>
+						<div style="font-weight:700;color:var(--lms-text-primary);">${frappe.utils.escape_html(e.employee_name)}</div>
 						<div style="color:var(--lms-text-muted);font-size:11px;">${frappe.utils.escape_html(e.employee)}</div>
 					</td>
 					<td style="color:var(--lms-text-secondary);">${frappe.utils.escape_html(e.department)}</td>
@@ -610,7 +793,7 @@ class LMSAdmin {
 							<div class="lms-prog-bar" style="flex:1;">
 								<div class="lms-prog-fill ${color}" style="width:${Math.min(pct,100)}%"></div>
 							</div>
-							<span style="font-size:12px;min-width:36px;">${pct}%</span>
+							<span style="font-size:12px;min-width:36px;color:var(--lms-text-primary);">${pct}%</span>
 						</div>
 						<div style="font-size:11px;color:var(--lms-text-muted);">${e.completed_lessons}/${e.total_lessons} dars</div>
 					</td>
@@ -707,7 +890,7 @@ class LMSAdmin {
 	}
 
 	_renderProfileSkeleton() {
-		const sk = (lines = 3) => Array.from({length: lines}, () =>
+		const sk = (lines = 3) => Array.from({ length: lines }, () =>
 			'<div class="lms-skeleton lms-skeleton-line"></div>'
 		).join('');
 		document.getElementById('lms-profile-body').innerHTML = `
@@ -758,7 +941,7 @@ class LMSAdmin {
 
 		const summaryHtml = `<div class="lms-kpi-grid" style="margin-bottom:24px;">${summaryCards}</div>`;
 
-		// ── Streak cards ──────────────────────────────────────────────────
+		// Streak cards
 		const streakHtml = (ta.current_streak > 0 || ta.longest_streak > 0) ? `
 			<div class="lms-hm-streak-row">
 				<div class="lms-hm-streak-card">
@@ -777,7 +960,6 @@ class LMSAdmin {
 				</div>
 			</div>` : '';
 
-		// ── Heatmap + chart sections ──────────────────────────────────────
 		const chartHtml = `
 			<div class="lms-section-title">
 				📊 Faollik haritasi (365 kun)
@@ -791,13 +973,13 @@ class LMSAdmin {
 			</div>
 			<div class="lms-chart-wrap" id="lms-monthly-chart"></div>`;
 
-		const coursesHtml  = this._renderCoursesAccordion(courses, quiz_details);
+		const coursesHtml = this._renderCoursesAccordion(courses, quiz_details);
 
 		const allAssignments = [];
 		(courses || []).forEach(c => {
 			(c.lessons || []).forEach(l => {
 				if (l.assignment) {
-					allAssignments.push({...l.assignment, lesson_title: frappe.utils.escape_html(l.lesson_title || '')});
+					allAssignments.push({ ...l.assignment, lesson_title: frappe.utils.escape_html(l.lesson_title || '') });
 				}
 			});
 		});
@@ -807,7 +989,7 @@ class LMSAdmin {
 			headerHtml + summaryHtml + chartHtml + coursesHtml + auditHtml
 			+ '<div id="lms-profile-oa"></div>';
 
-		// ── Render charts ─────────────────────────────────────────────────
+		// Render charts
 		this._renderHeatmap(ta.heatmap, 'lms-heatmap-wrap');
 		this._renderTimeChart(ta.monthly, 'lms-monthly-chart');
 		this._loadProfileOA(employee);
@@ -824,7 +1006,6 @@ class LMSAdmin {
 			return;
 		}
 
-		// Rang darajalari (daqiqaga qarab)
 		const _level = (min) => {
 			if (min <= 0)   return 'lms-hm-0';
 			if (min <= 15)  return 'lms-hm-1';
@@ -833,40 +1014,35 @@ class LMSAdmin {
 			return 'lms-hm-4';
 		};
 
-		// Data lookup
 		const byDate = {};
 		heatmapData.forEach(d => { byDate[d.date] = d; });
 
-		// Grid hisoblash
 		const today = new Date();
 		today.setHours(0, 0, 0, 0);
 		const startDate = new Date(today);
 		startDate.setDate(today.getDate() - 364);
 
-		// Dushanbadan boshlash uchun offset
 		const firstDow     = startDate.getDay();
 		const mondayOffset = (firstDow === 0 ? 6 : firstDow - 1);
 		const gridStart    = new Date(startDate);
 		gridStart.setDate(startDate.getDate() - mondayOffset);
 
-		// Haftalarga ajratish
 		const weeks = [];
 		let week   = new Array(7).fill(null);
 		const cur  = new Date(gridStart);
 
 		while (cur <= today) {
-			const dow       = cur.getDay();
-			const weekDay   = (dow === 0 ? 6 : dow - 1); // 0=Du, 6=Ya
-			const dateStr   = cur.toISOString().slice(0, 10);
-			const inRange   = cur >= startDate && cur <= today;
-			week[weekDay]   = inRange ? { date: dateStr, minutes: (byDate[dateStr]?.minutes || 0) } : null;
+			const dow     = cur.getDay();
+			const weekDay = (dow === 0 ? 6 : dow - 1);
+			const dateStr = cur.toISOString().slice(0, 10);
+			const inRange = cur >= startDate && cur <= today;
+			week[weekDay] = inRange ? { date: dateStr, minutes: (byDate[dateStr]?.minutes || 0) } : null;
 			if (weekDay === 6) { weeks.push([...week]); week = new Array(7).fill(null); }
 			cur.setDate(cur.getDate() + 1);
 		}
 		if (week.some(x => x !== null)) weeks.push(week);
 
-		// Oy yorliqlari
-		const MO_NAMES = ['Yan','Fev','Mar','Apr','May','Iyn','Iyl','Avg','Sen','Okt','Noy','Dek'];
+		const MO_NAMES = ['Yan', 'Fev', 'Mar', 'Apr', 'May', 'Iyn', 'Iyl', 'Avg', 'Sen', 'Okt', 'Noy', 'Dek'];
 		const monthLabels = [];
 		let lastMonth = -1;
 		weeks.forEach((w, wi) => {
@@ -876,13 +1052,11 @@ class LMSAdmin {
 			if (mo !== lastMonth) { monthLabels.push({ wi, label: MO_NAMES[mo] }); lastMonth = mo; }
 		});
 
-		// Statistika
-		const totalMin  = Object.values(byDate).reduce((s, d) => s + (d.minutes || 0), 0);
+		const totalMin   = Object.values(byDate).reduce((s, d) => s + (d.minutes || 0), 0);
 		const activeDays = Object.values(byDate).filter(d => d.minutes > 0).length;
-		const totalEl   = document.getElementById('lms-heatmap-total-label');
+		const totalEl    = document.getElementById('lms-heatmap-total-label');
 		if (totalEl) totalEl.textContent = `${Math.round(totalMin / 60)} soat · ${activeDays} faol kun`;
 
-		// SVG o'lchamlari
 		const CELL     = 13;
 		const GAP      = 3;
 		const STEP     = CELL + GAP;
@@ -894,20 +1068,17 @@ class LMSAdmin {
 
 		let svg = `<svg viewBox="0 0 ${totalW} ${totalH}" width="100%" preserveAspectRatio="xMinYMid meet" xmlns="http://www.w3.org/2000/svg">`;
 
-		// Oy yorliqlari
 		monthLabels.forEach(({ wi, label }) => {
 			const x = LEFT_PAD + wi * STEP;
 			svg += `<text x="${x}" y="${TOP_PAD - 6}" font-size="10" class="lms-hm-month-label">${label}</text>`;
 		});
 
-		// Kun yorliqlari
 		DOW_LBL.forEach((lbl, i) => {
 			if (!lbl) return;
 			const y = TOP_PAD + i * STEP + CELL - 1;
 			svg += `<text x="${LEFT_PAD - 5}" y="${y}" font-size="10" text-anchor="end" class="lms-hm-dow-label">${lbl}</text>`;
 		});
 
-		// Katak'lar
 		weeks.forEach((w, wi) => {
 			w.forEach((day, di) => {
 				if (day === null) return;
@@ -916,26 +1087,24 @@ class LMSAdmin {
 				const lvl = _level(day.minutes);
 				svg += `<rect x="${x}" y="${y}" width="${CELL}" height="${CELL}" rx="2" ry="2"
 					class="lms-hm-cell ${lvl}"
-					data-date="${day.date}" data-min="${day.minutes}"><title>${day.date}: ${day.minutes > 0 ? Math.round(day.minutes) + ' daq' : 'faollik yo\'q'}</title></rect>`;
+					data-date="${day.date}" data-min="${day.minutes}">
+					<title>${day.date}: ${day.minutes > 0 ? Math.round(day.minutes) + ' daq' : 'faollik yo\'q'}</title>
+				</rect>`;
 			});
 		});
 
 		svg += '</svg>';
 
-		// Legend
 		const legend = `
 			<div class="lms-hm-legend">
 				<span class="lms-hm-legend-label">Kam</span>
-				${[0,1,2,3,4].map(i => `<span class="lms-hm-cell lms-hm-${i}" style="display:inline-block;width:13px;height:13px;border-radius:2px;"></span>`).join('')}
+				${[0, 1, 2, 3, 4].map(i => `<span class="lms-hm-cell lms-hm-${i}" style="display:inline-block;width:13px;height:13px;border-radius:2px;"></span>`).join('')}
 				<span class="lms-hm-legend-label">Ko'p</span>
 			</div>`;
 
 		container.innerHTML = svg + legend;
 
-		// Custom tooltip
-		if (container._tooltipEl) {
-			container._tooltipEl.remove();
-		}
+		if (container._tooltipEl) container._tooltipEl.remove();
 		const tooltip = document.createElement('div');
 		tooltip.className = 'lms-hm-tooltip';
 		document.body.appendChild(tooltip);
@@ -947,9 +1116,9 @@ class LMSAdmin {
 				const min    = parseFloat(cell.dataset.min || 0);
 				const date   = cell.dataset.date;
 				const d      = new Date(date);
-				const dayLbl = ['Yak','Du','Se','Ch','Pa','Ju','Sha'][d.getDay()];
+				const dayLbl = ['Yak', 'Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sha'][d.getDay()];
 				tooltip.innerHTML = min > 0
-					? `<strong>${dayLbl}, ${date}</strong><br>${Math.round(min)} daqiqa &nbsp;·&nbsp; ${(min/60).toFixed(1)} soat`
+					? `<strong>${dayLbl}, ${date}</strong><br>${Math.round(min)} daqiqa &nbsp;·&nbsp; ${(min / 60).toFixed(1)} soat`
 					: `<strong>${dayLbl}, ${date}</strong><br><span style="color:var(--lms-text-muted)">Faollik yo'q</span>`;
 				tooltip.style.display = 'block';
 			});
@@ -1000,9 +1169,9 @@ class LMSAdmin {
 				}
 
 				return `<tr>
-					<td>${icon} ${lTitle}${quizBadge}${asgBadge}</td>
-					<td style="text-align:center;">${watchM} daq</td>
-					<td style="text-align:center;">${compPct}%</td>
+					<td style="color:var(--lms-text-primary);">${icon} ${lTitle}${quizBadge}${asgBadge}</td>
+					<td style="text-align:center;color:var(--lms-text-primary);">${watchM} daq</td>
+					<td style="text-align:center;color:var(--lms-text-primary);">${compPct}%</td>
 					<td style="text-align:center;color:var(--lms-text-muted);font-size:11px;">${frappe.utils.escape_html(l.completed_on || '—')}</td>
 				</tr>`;
 			}).join('');
@@ -1069,7 +1238,7 @@ class LMSAdmin {
 			return `
 				<div style="margin-bottom:8px;padding:8px;background:var(--lms-surface-2);border-radius:6px;border:1px solid var(--lms-border);">
 					<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">
-						<span style="font-size:12px;font-weight:600;">#${att.attempt_number}</span>
+						<span style="font-size:12px;font-weight:600;color:var(--lms-text-primary);">#${att.attempt_number}</span>
 						<span style="font-size:13px;font-weight:700;color:${pctColor};">${parseFloat(att.percentage || 0).toFixed(1)}%</span>
 						<span>${att.passed ? '✅' : '❌'}</span>
 						<span style="font-size:11px;color:var(--lms-text-muted);margin-left:auto;">${frappe.utils.escape_html(att.attempted_on || '')}</span>
@@ -1099,12 +1268,12 @@ class LMSAdmin {
 				fileCell = `<a href="${frappe.utils.escape_html(a.attached_file)}" target="_blank" rel="noopener noreferrer">📥 Fayl</a>`;
 			}
 			return `<tr>
-				<td>${a.lesson_title}</td>
-				<td>${frappe.utils.escape_html(a.submission_type || '—')}</td>
+				<td style="color:var(--lms-text-primary);">${a.lesson_title}</td>
+				<td style="color:var(--lms-text-primary);">${frappe.utils.escape_html(a.submission_type || '—')}</td>
 				<td>${fileCell}</td>
 				<td>${this._badge(a.status)}</td>
-				<td style="text-align:center;">${a.admin_score !== null && a.admin_score !== undefined ? parseFloat(a.admin_score).toFixed(1) : '—'}</td>
-				<td>${frappe.utils.escape_html(a.reviewed_by || '—')}</td>
+				<td style="text-align:center;color:var(--lms-text-primary);">${a.admin_score !== null && a.admin_score !== undefined ? parseFloat(a.admin_score).toFixed(1) : '—'}</td>
+				<td style="color:var(--lms-text-primary);">${frappe.utils.escape_html(a.reviewed_by || '—')}</td>
 				<td style="color:var(--lms-text-muted);font-size:11px;">${frappe.utils.escape_html(a.reviewed_on || '—')}</td>
 			</tr>`;
 		}).join('');
@@ -1124,7 +1293,7 @@ class LMSAdmin {
 			</div>`;
 	}
 
-	// ── Profile: Ochiq savollar ──────────────────────────────────────────
+	// ── Profile: Ochiq savollar ───────────────────────────────────────────
 	_loadProfileOA(employee) {
 		const container = document.getElementById('lms-profile-oa');
 		if (!container) return;
@@ -1154,7 +1323,7 @@ class LMSAdmin {
 				let html = `
 					<div class="lms-section-title">✍️ Ochiq Savollar
 						<span class="lms-source-tag">${data.length} ta</span>
-						${pendingCount > 0 ? `<span class="lms-source-tag" style="background:var(--lms-orange-soft);color:var(--lms-orange-text);border-color:var(--lms-orange);">${pendingCount} baholanmagan</span>` : ''}
+						${pendingCount > 0 ? `<span class="lms-source-tag" style="background:var(--lms-orange-soft);color:var(--lms-orange);border-color:var(--lms-orange-border);">${pendingCount} baholanmagan</span>` : ''}
 					</div>
 					<div class="lms-kpi-grid" style="margin-bottom:16px;">
 						${this._summaryCard('Jami savollar', data.length)}
@@ -1210,11 +1379,11 @@ class LMSAdmin {
 		return `
 			<tr class="${isPending ? 'lms-oa-row-pending' : ''}" data-poa-id="${eid}">
 				<td>
-					<div style="font-weight:600;font-size:12px;">${frappe.utils.escape_html(row.lesson_title)}</div>
+					<div style="font-weight:600;font-size:12px;color:var(--lms-text-primary);">${frappe.utils.escape_html(row.lesson_title)}</div>
 					<div style="color:var(--lms-text-muted);font-size:11px;">${frappe.utils.escape_html(row.course_name)}</div>
 				</td>
 				<td style="max-width:200px;" title="${frappe.utils.escape_html(row.question_text)}">
-					<span style="font-size:12px;">${frappe.utils.escape_html(qShort)}</span>
+					<span style="font-size:12px;color:var(--lms-text-primary);">${frappe.utils.escape_html(qShort)}</span>
 					<span class="lms-oa-qtype" style="margin-left:4px;">${frappe.utils.escape_html(row.question_type)}</span>
 				</td>
 				<td style="max-width:200px;" title="${frappe.utils.escape_html(row.answer_text)}">
@@ -1489,216 +1658,187 @@ class LMSAdmin {
 		});
 	}
 
-	// ── SVG Time Chart ───────────────────────────────────────────────────
+	// ═════════════════════════════════════════════════════════════════════
+	//  CHART.JS — OYLIK VAQT GRAFIGI
+	// ═════════════════════════════════════════════════════════════════════
+	_renderTimeChart(monthlyData, containerId) {
+		const container = document.getElementById(containerId);
+		if (!container) return;
+		if (!monthlyData || !monthlyData.length) {
+			container.innerHTML = '<div class="lms-empty">Vaqt ma\'lumoti yo\'q.</div>';
+			return;
+		}
 
-	// ═══════════════════════════════════════════════════════════════════════════
-//  REPLACEMENT: _renderTimeChart()
-//  lms_admin.js ichida mavjud _renderTimeChart() metodini shu bilan almashtiring
-//  Chart.js + datalabels plugin — dynamic CDN load
-// ═══════════════════════════════════════════════════════════════════════════
+		const MO_NAMES = ['Yan', 'Fev', 'Mar', 'Apr', 'May', 'Iyn', 'Iyl', 'Avg', 'Sen', 'Okt', 'Noy', 'Dek'];
+		const labels   = monthlyData.map(d => MO_NAMES[parseInt(d.month.slice(5)) - 1] || d.month.slice(5));
+		const values   = monthlyData.map(d => parseFloat(d.hours) || 0);
+		const maxH     = Math.max(...values, 0.01);
+		const avgH     = values.reduce((a, b) => a + b, 0) / (values.length || 1);
+		const totalH   = values.reduce((a, b) => a + b, 0);
+		const activeM  = values.filter(v => v > 0).length;
+		const maxIdx   = values.indexOf(maxH);
 
-_renderTimeChart(monthlyData, containerId) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    if (!monthlyData || !monthlyData.length) {
-        container.innerHTML = '<div class="lms-empty">Vaqt ma\'lumoti yo\'q.</div>';
-        return;
-    }
+		const statsHtml = `
+			<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;">
+				<div class="lms-chart-stat-card">
+					<div class="lms-chart-stat-label">Jami vaqt</div>
+					<div class="lms-chart-stat-value">${totalH.toFixed(1)}<span class="lms-chart-stat-unit">s</span></div>
+					<div class="lms-chart-stat-sub">12 oyda</div>
+				</div>
+				<div class="lms-chart-stat-card lms-chart-stat-accent">
+					<div class="lms-chart-stat-label">Eng faol oy</div>
+					<div class="lms-chart-stat-value">${labels[maxIdx] || '—'}</div>
+					<div class="lms-chart-stat-sub">${maxH.toFixed(1)} soat</div>
+				</div>
+				<div class="lms-chart-stat-card">
+					<div class="lms-chart-stat-label">O&#39;rtacha</div>
+					<div class="lms-chart-stat-value">${avgH.toFixed(1)}<span class="lms-chart-stat-unit">s</span></div>
+					<div class="lms-chart-stat-sub">oyiga</div>
+				</div>
+				<div class="lms-chart-stat-card">
+					<div class="lms-chart-stat-label">Faol oylar</div>
+					<div class="lms-chart-stat-value">${activeM}<span class="lms-chart-stat-unit"> oy</span></div>
+					<div class="lms-chart-stat-sub">12 oydan</div>
+				</div>
+			</div>`;
 
-    const MO_NAMES = ['Yan','Fev','Mar','Apr','May','Iyn','Iyl','Avg','Sen','Okt','Noy','Dek'];
-    const labels  = monthlyData.map(d => MO_NAMES[parseInt(d.month.slice(5)) - 1] || d.month.slice(5));
-    const values  = monthlyData.map(d => parseFloat(d.hours) || 0);
-    const maxH    = Math.max(...values, 0.01);
-    const avgH    = values.reduce((a, b) => a + b, 0) / (values.length || 1);
-    const totalH  = values.reduce((a, b) => a + b, 0);
-    const activeM = values.filter(v => v > 0).length;
-    const maxIdx  = values.indexOf(maxH);
+		const chartId = 'lms-tc-' + Math.random().toString(36).slice(2, 8);
+		container.innerHTML = statsHtml
+			+ `<div style="position:relative;width:100%;height:260px;"><canvas id="${chartId}"></canvas></div>`;
 
-    // ── Stat cards ────────────────────────────────────────────────────────
-    const statsHtml = `
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;">
-            <div class="lms-chart-stat-card">
-                <div class="lms-chart-stat-label">Jami vaqt</div>
-                <div class="lms-chart-stat-value">${totalH.toFixed(1)}<span class="lms-chart-stat-unit">s</span></div>
-                <div class="lms-chart-stat-sub">12 oyda</div>
-            </div>
-            <div class="lms-chart-stat-card lms-chart-stat-accent">
-                <div class="lms-chart-stat-label">Eng faol oy</div>
-                <div class="lms-chart-stat-value">${labels[maxIdx] || '—'}</div>
-                <div class="lms-chart-stat-sub">${maxH.toFixed(1)} soat</div>
-            </div>
-            <div class="lms-chart-stat-card">
-                <div class="lms-chart-stat-label">O&#39;rtacha</div>
-                <div class="lms-chart-stat-value">${avgH.toFixed(1)}<span class="lms-chart-stat-unit">s</span></div>
-                <div class="lms-chart-stat-sub">oyiga</div>
-            </div>
-            <div class="lms-chart-stat-card">
-                <div class="lms-chart-stat-label">Faol oylar</div>
-                <div class="lms-chart-stat-value">${activeM}<span class="lms-chart-stat-unit"> oy</span></div>
-                <div class="lms-chart-stat-sub">12 oydan</div>
-            </div>
-        </div>`;
+		const _draw = () => {
+			const isDark   = _getCurrentTheme() === 'dark';
+			const ACCENT   = isDark ? '#38BDF8' : '#1A56FF';
+			const GRID     = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)';
+			const MUTED    = isDark ? '#4A6A90' : '#7A90B0';
+			const TEXT     = isDark ? '#E6EEFF' : '#0A1628';
+			const AVG_CLR  = isDark ? 'rgba(251,191,36,0.70)' : 'rgba(217,119,6,0.55)';
 
-    const chartId = 'lms-tc-' + Math.random().toString(36).slice(2, 8);
-    container.innerHTML = statsHtml
-        + `<div style="position:relative;width:100%;height:260px;"><canvas id="${chartId}"></canvas></div>`;
+			const barColors = values.map(v => {
+				const r = v / maxH;
+				if (r <= 0)   return isDark ? 'rgba(56,189,248,0.10)' : 'rgba(26,86,255,0.08)';
+				if (r < 0.10) return isDark ? 'rgba(56,189,248,0.28)' : 'rgba(26,86,255,0.22)';
+				if (r < 0.30) return isDark ? 'rgba(56,189,248,0.50)' : 'rgba(26,86,255,0.42)';
+				if (r < 0.60) return isDark ? 'rgba(56,189,248,0.70)' : 'rgba(26,86,255,0.68)';
+				return ACCENT;
+			});
+			const borderColors = values.map(v => v > 0 ? ACCENT : 'transparent');
 
-    // ── Load Chart.js + datalabels, then render ───────────────────────────
-    const _draw = () => {
-        const isDark   = _getCurrentTheme() === 'dark';
-        const ACCENT   = isDark ? '#818CF8' : '#4F46E5';
-        const GRID     = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)';
-        const MUTED    = isDark ? '#64748B' : '#94A3B8';
-        const TEXT     = isDark ? '#F1F5F9' : '#0F172A';
-        const AVG_CLR  = isDark ? 'rgba(248,113,113,0.70)' : 'rgba(220,38,38,0.55)';
+			const avgLinePlugin = {
+				id: 'lmsAvgLine',
+				afterDraw(chart) {
+					const { ctx, chartArea: { left, right }, scales: { y } } = chart;
+					const yPos = y.getPixelForValue(avgH);
+					ctx.save();
+					ctx.setLineDash([5, 4]);
+					ctx.strokeStyle = AVG_CLR;
+					ctx.lineWidth   = 1.5;
+					ctx.beginPath();
+					ctx.moveTo(left, yPos);
+					ctx.lineTo(right, yPos);
+					ctx.stroke();
+					ctx.setLineDash([]);
+					ctx.fillStyle = AVG_CLR;
+					ctx.font      = '500 11px DM Sans, -apple-system, sans-serif';
+					ctx.textAlign = 'right';
+					ctx.fillText("O'rtacha: " + avgH.toFixed(1) + 's', right, yPos - 5);
+					ctx.restore();
+				}
+			};
 
-        // Color intensity by ratio to max
-        const barColors = values.map(v => {
-            const r = v / maxH;
-            if (r <= 0)    return isDark ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.10)';
-            if (r < 0.10)  return isDark ? 'rgba(129,140,248,0.30)' : 'rgba(99,102,241,0.22)';
-            if (r < 0.30)  return isDark ? 'rgba(129,140,248,0.52)' : 'rgba(79,70,229,0.42)';
-            if (r < 0.60)  return isDark ? 'rgba(129,140,248,0.72)' : 'rgba(79,70,229,0.68)';
-            return ACCENT;
-        });
-        const borderColors = values.map(v => v > 0 ? ACCENT : 'transparent');
+			const canvas = document.getElementById(chartId);
+			if (!canvas) return;
+			if (canvas._chartInstance) { canvas._chartInstance.destroy(); }
 
-        // Inline average-line plugin
-        const avgLinePlugin = {
-            id: 'lmsAvgLine',
-            afterDraw(chart) {
-                const { ctx, chartArea: { left, right }, scales: { y } } = chart;
-                const yPos = y.getPixelForValue(avgH);
-                ctx.save();
-                ctx.setLineDash([5, 4]);
-                ctx.strokeStyle = AVG_CLR;
-                ctx.lineWidth   = 1.5;
-                ctx.beginPath();
-                ctx.moveTo(left, yPos);
-                ctx.lineTo(right, yPos);
-                ctx.stroke();
-                ctx.setLineDash([]);
-                ctx.fillStyle  = AVG_CLR;
-                ctx.font       = '500 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial';
-                ctx.textAlign  = 'right';
-                ctx.fillText("O'rtacha: " + avgH.toFixed(1) + 's', right, yPos - 5);
-                ctx.restore();
-            }
-        };
+			const chartCfg = {
+				type: 'bar',
+				plugins: [avgLinePlugin],
+				data: {
+					labels,
+					datasets: [{
+						data:            values,
+						backgroundColor: barColors,
+						borderColor:     borderColors,
+						borderWidth:     1.5,
+						borderRadius:    6,
+						borderSkipped:   false,
+					}]
+				},
+				options: {
+					responsive:          true,
+					maintainAspectRatio: false,
+					layout:   { padding: { top: 28, right: 8, bottom: 0, left: 4 } },
+					animation: { duration: 700, easing: 'easeOutQuart' },
+					plugins: {
+						legend: { display: false },
+						tooltip: {
+							backgroundColor: isDark ? '#0D1626' : '#FFFFFF',
+							borderColor:     isDark ? '#1E3252' : '#DDE3EE',
+							borderWidth:     1,
+							titleColor:      TEXT,
+							bodyColor:       MUTED,
+							padding:         10,
+							cornerRadius:    8,
+							callbacks: {
+								title: ctx => labels[ctx[0].dataIndex] + '  ' + monthlyData[ctx[0].dataIndex]?.month,
+								label: ctx  => '  ' + ctx.parsed.y.toFixed(1) + ' soat',
+							}
+						},
+						datalabels: window.ChartDataLabels ? {
+							anchor:    'end',
+							align:     'top',
+							offset:    2,
+							formatter: v => v > 0 ? v.toFixed(1) : '',
+							font:      { size: 11, weight: '500' },
+							color: ctx => {
+								const ratio = values[ctx.dataIndex] / maxH;
+								return ratio > 0.25 ? ACCENT : MUTED;
+							}
+						} : false,
+					},
+					scales: {
+						x: {
+							grid:   { display: false },
+							border: { display: false },
+							ticks:  { color: MUTED, font: { size: 12 }, autoSkip: false, maxRotation: 0 }
+						},
+						y: {
+							grid:   { color: GRID },
+							border: { display: false, dash: [4, 4] },
+							ticks:  { color: MUTED, font: { size: 11 }, maxTicksLimit: 5, callback: v => v + 's' },
+							beginAtZero: true,
+						}
+					}
+				}
+			};
 
-        const canvas = document.getElementById(chartId);
-        if (!canvas) return;
+			if (window.ChartDataLabels) Chart.register(ChartDataLabels);
+			canvas._chartInstance = new Chart(canvas, chartCfg);
+		};
 
-        // Destroy existing if re-render
-        if (canvas._chartInstance) { canvas._chartInstance.destroy(); }
+		const _loadScript = (src, cb) => {
+			if (document.querySelector(`script[src="${src}"]`)) { cb(); return; }
+			const s  = document.createElement('script');
+			s.src    = src;
+			s.onload = cb;
+			document.head.appendChild(s);
+		};
 
-        const chartCfg = {
-            type: 'bar',
-            plugins: [avgLinePlugin],
-            data: {
-                labels,
-                datasets: [{
-                    data:            values,
-                    backgroundColor: barColors,
-                    borderColor:     borderColors,
-                    borderWidth:     1.5,
-                    borderRadius:    6,
-                    borderSkipped:   false,
-                }]
-            },
-            options: {
-                responsive:          true,
-                maintainAspectRatio: false,
-                layout:   { padding: { top: 28, right: 8, bottom: 0, left: 4 } },
-                animation: { duration: 600, easing: 'easeOutQuart' },
-                plugins: {
-                    legend:      { display: false },
-                    tooltip: {
-                        backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
-                        borderColor:     isDark ? '#334155' : '#E2E8F0',
-                        borderWidth:     1,
-                        titleColor:      TEXT,
-                        bodyColor:       MUTED,
-                        padding:         10,
-                        cornerRadius:    8,
-                        callbacks: {
-                            title: ctx => labels[ctx[0].dataIndex] + '  ' + monthlyData[ctx[0].dataIndex]?.month,
-                            label: ctx  => '  ' + ctx.parsed.y.toFixed(1) + ' soat',
-                        }
-                    },
-                    // datalabels — only if plugin loaded
-                    datalabels: window.ChartDataLabels ? {
-                        anchor:    'end',
-                        align:     'top',
-                        offset:    2,
-                        formatter: v => v > 0 ? v.toFixed(1) : '',
-                        font:      { size: 11, weight: '500' },
-                        color: ctx => {
-                            const ratio = values[ctx.dataIndex] / maxH;
-                            return ratio > 0.25 ? ACCENT : MUTED;
-                        }
-                    } : false,
-                },
-                scales: {
-                    x: {
-                        grid:   { display: false },
-                        border: { display: false },
-                        ticks:  {
-                            color:       MUTED,
-                            font:        { size: 12 },
-                            autoSkip:    false,
-                            maxRotation: 0,
-                        }
-                    },
-                    y: {
-                        grid:   { color: GRID },
-                        border: { display: false, dash: [4, 4] },
-                        ticks:  {
-                            color:         MUTED,
-                            font:          { size: 11 },
-                            maxTicksLimit: 5,
-                            callback:      v => v + 's',
-                        },
-                        beginAtZero: true,
-                    }
-                }
-            }
-        };
+		const CHARTJS_CDN    = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js';
+		const DATALABELS_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js';
 
-        // Register datalabels if available
-        if (window.ChartDataLabels) {
-            Chart.register(ChartDataLabels);
-        }
+		if (typeof Chart === 'undefined') {
+			_loadScript(CHARTJS_CDN, () => _loadScript(DATALABELS_CDN, _draw));
+		} else {
+			if (typeof ChartDataLabels === 'undefined') {
+				_loadScript(DATALABELS_CDN, _draw);
+			} else {
+				_draw();
+			}
+		}
+	}
 
-        canvas._chartInstance = new Chart(canvas, chartCfg);
-    };
-
-    // Load Chart.js + datalabels plugin dynamically if not present
-    const _loadScript = (src, cb) => {
-        if (document.querySelector(`script[src="${src}"]`)) { cb(); return; }
-        const s  = document.createElement('script');
-        s.src    = src;
-        s.onload = cb;
-        document.head.appendChild(s);
-    };
-
-    const CHARTJS_CDN    = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js';
-    const DATALABELS_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js';
-
-    if (typeof Chart === 'undefined') {
-        _loadScript(CHARTJS_CDN, () => {
-            _loadScript(DATALABELS_CDN, _draw);
-        });
-    } else {
-        if (typeof ChartDataLabels === 'undefined') {
-            _loadScript(DATALABELS_CDN, _draw);
-        } else {
-            _draw();
-        }
-    }
-}
-
-	// ── Pagination ───────────────────────────────────────────────────────
+	// ── Pagination ────────────────────────────────────────────────────────
 	_renderPagination(total, tab) {
 		const totalPages = Math.ceil(total / this.pageSize);
 		const current    = this.pages[tab];
@@ -1720,7 +1860,7 @@ _renderTimeChart(monthlyData, containerId) {
 		if (startPage > 1) btns += `<button class="lms-page-btn" onclick="window.lms_admin.goPage(1,'${tab}')">«</button>`;
 		for (let i = startPage; i <= endPage; i++) {
 			btns += `<button class="lms-page-btn ${i === current ? 'active' : ''}"
-				onclick="window.lms_admin.goPage(${i}, '${tab}')">${i}</button>`;
+				onclick="window.lms_admin.goPage(${i},'${tab}')">${i}</button>`;
 		}
 		if (endPage < totalPages) btns += `<button class="lms-page-btn" onclick="window.lms_admin.goPage(${totalPages},'${tab}')">»</button>`;
 
@@ -1732,7 +1872,7 @@ _renderTimeChart(monthlyData, containerId) {
 		this._loadActiveTab();
 	}
 
-	// ── Yordamchilar ─────────────────────────────────────────────────────
+	// ── Yordamchilar ──────────────────────────────────────────────────────
 	_setLoading() {
 		document.getElementById('lms-content').innerHTML =
 			'<div class="lms-empty"><span class="lms-spinner"></span> Yuklanmoqda…</div>';
