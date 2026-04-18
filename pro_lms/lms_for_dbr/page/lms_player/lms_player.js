@@ -248,6 +248,13 @@ class LMSPlayer {
                 <div class="lms-video-error" id="lms-video-error" style="display:none">
                     <p>⚠️ Video yuklanmadi. Quiz va topshiriqlarga o'tishingiz mumkin.</p>
                 </div>
+                <div class="lms-skip-warning" id="lms-skip-warning"
+                     style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+                            background:rgba(0,0,0,0.82);color:#fff;padding:14px 22px;border-radius:8px;
+                            font-size:15px;font-weight:500;z-index:10;pointer-events:none;
+                            box-shadow:0 4px 16px rgba(0,0,0,0.4);">
+                    ⛔ Oldinga o'tkazib bo'lmaydi
+                </div>
             </div>
             <div class="lms-video-controls-wrap" id="lms-video-controls-wrap">
                 <div class="lms-seekbar-container" id="lms-seekbar-container">
@@ -310,6 +317,13 @@ class LMSPlayer {
                 },
                 onQualityChange: (quality) => {
                     this._updateQualityLabel(quality);
+                },
+                onSkipBlocked: () => {
+                    const $w = this.$main.find("#lms-skip-warning");
+                    if (!$w.length) return;
+                    $w.stop(true, true).show();
+                    clearTimeout(this._skipWarnTimer);
+                    this._skipWarnTimer = setTimeout(() => $w.hide(), 2000);
                 },
             }
         );
@@ -1551,20 +1565,31 @@ class VideoEngine {
         this._currentQuality = "auto";
         this._qualitiesDetected = false;
         this._lastDisplayedSec = -1;
+        this._manualQuality = null;
+        this._qualityResetPending = false;
+        this._qualityRetryCount = 0;
 
         this._init();
     }
 
     _init() {
         const url = this.videoUrl || "";
+        console.log("[LMS] VideoEngine URL:", url);
         if (url.includes("youtube.com") || url.includes("youtu.be")) {
             this.playerType = "youtube";
+            console.log("[LMS] → YouTube mode");
             this._init_youtube();
         } else if (url.includes("vimeo.com")) {
             this.playerType = "vimeo";
+            console.log("[LMS] → Vimeo mode");
             this._init_vimeo();
+        } else if (this._isHlsSource(url)) {
+            this.playerType = "cloudflare";
+            console.log("[LMS] → Cloudflare/HLS mode");
+            this._init_cloudflare();
         } else {
             this.playerType = "html5";
+            console.log("[LMS] → HTML5 mode (no quality switching)");
             this._init_html5();
         }
     }
@@ -1614,6 +1639,40 @@ class VideoEngine {
                     },
                     onPlaybackQualityChange: (e) => {
                         this._currentQuality = e.data;
+
+                        // If we just forced a quality reset, swallow the ensuing event
+                        // so we don't count it as an ABR override.
+                        if (this._qualityResetPending) {
+                            this._qualityResetPending = false;
+                        } else if (
+                            this._manualQuality &&
+                            e.data !== this._manualQuality &&
+                            e.data !== "auto"
+                        ) {
+                            // YouTube's ABR overrode the user's manual choice.
+                            // Retry up to 3 times; after that accept YT's decision
+                            // to avoid thrashing when bandwidth is truly insufficient.
+                            if (this._qualityRetryCount < 3) {
+                                this._qualityRetryCount++;
+                                this._qualityResetPending = true;
+                                const target = this._manualQuality;
+                                setTimeout(() => {
+                                    if (
+                                        !this._destroyed &&
+                                        this.ytPlayer &&
+                                        this.ytPlayer.setPlaybackQuality
+                                    ) {
+                                        this.ytPlayer.setPlaybackQuality(target);
+                                    }
+                                }, 500);
+                            } else {
+                                this._manualQuality = null;
+                                this._qualityRetryCount = 0;
+                            }
+                        } else if (e.data === this._manualQuality) {
+                            this._qualityRetryCount = 0;
+                        }
+
                         this.callbacks.onQualityChange &&
                             this.callbacks.onQualityChange(e.data, this._qualityLevels);
                     },
@@ -1686,6 +1745,183 @@ class VideoEngine {
         return match ? match[1] : null;
     }
 
+    // ── Cloudflare Stream / HLS ──────────────────────────────────────────
+    _isHlsSource(url) {
+        return /cloudflarestream\.com|videodelivery\.net|\.m3u8(\?|$)/i.test(url);
+    }
+
+    _getHlsManifestUrl(url) {
+        // Already an m3u8 URL — use directly
+        if (/\.m3u8(\?|$)/i.test(url)) return url;
+
+        // Strip trailing /iframe, /watch, or slash
+        let clean = url.replace(/\/(iframe|watch)\/?(\?.*)?$/i, "").replace(/\/+$/, "");
+
+        // Append HLS manifest path
+        return clean + "/manifest/video.m3u8";
+    }
+
+    _init_cloudflare() {
+        const hlsUrl = this._getHlsManifestUrl(this.videoUrl);
+        console.log("[LMS] Cloudflare HLS URL:", hlsUrl);
+
+        const video = document.createElement("video");
+        video.style.cssText = "width:100%;height:100%;background:#000;";
+        video.preload = "metadata";
+        video.disablePictureInPicture = true;
+        video.controlsList = "nodownload";
+        video.volume = 1;
+        video.muted = false;
+        video.playsInline = true;
+        video.crossOrigin = "anonymous";
+
+        this.htmlVideo = video;
+        this.embedEl.appendChild(video);
+
+        const self = this;
+
+        const setupVideoEvents = () => {
+            video.addEventListener("loadedmetadata", () => {
+                if (self.currentPosition > 0) {
+                    video.currentTime = self.currentPosition;
+                }
+            });
+
+            video.addEventListener("seeking", () => {
+                if (video.currentTime > self.maxWatchedPosition + 5) {
+                    video.currentTime = self.maxWatchedPosition;
+                }
+            });
+
+            video.addEventListener("timeupdate", () => {
+                self._tick(video.currentTime);
+            });
+
+            video.addEventListener("play", () => self._onPlay());
+            video.addEventListener("pause", () => self._onPause());
+            video.addEventListener("ended", () => self._onPause());
+            video.addEventListener("error", () => {
+                self.callbacks.onError && self.callbacks.onError();
+            });
+        };
+
+        // Helper: populate quality menu from HLS levels
+        const populateQualities = (hls) => {
+            if (self._qualitiesDetected) return;
+            const levels = hls.levels;
+            console.log("[LMS] HLS levels:", levels.length, levels.map(
+                (l) => ({ h: l.height, w: l.width, b: l.bitrate })
+            ));
+            if (!levels || levels.length < 1) return;
+
+            const qualityList = ["auto"];
+            const qualityMap = { auto: -1 };
+            const seen = new Set();
+
+            const entries = levels.map((l, i) => ({
+                label: l.height
+                    ? l.height + "p"
+                    : Math.round(l.bitrate / 1000) + "k",
+                height: l.height || 0,
+                index: i,
+            }));
+            entries.sort((a, b) => b.height - a.height);
+
+            entries.forEach((e) => {
+                if (!seen.has(e.label)) {
+                    seen.add(e.label);
+                    qualityList.push(e.label);
+                    qualityMap[e.label] = e.index;
+                }
+            });
+
+            self._qualityLevels = qualityList;
+            self._qualityMap = qualityMap;
+            self._hlsLevels = levels;
+            self._currentQuality = "auto";
+            self._qualitiesDetected = true;
+
+            console.log("[LMS] Quality list:", qualityList, "Map:", qualityMap);
+            self.callbacks.onQualitiesAvailable &&
+                self.callbacks.onQualitiesAvailable(qualityList, "auto");
+        };
+
+        // ── Load HLS.js (skip native check — always prefer HLS.js for quality control) ──
+        _ensureHlsJS().then(() => {
+            if (self._destroyed) return;
+
+            console.log("[LMS] HLS.js loaded:", typeof Hls !== "undefined",
+                        "supported:", typeof Hls !== "undefined" && Hls.isSupported());
+
+            if (typeof Hls === "undefined" || !Hls.isSupported()) {
+                console.warn("[LMS] HLS.js not available — native fallback, no quality menu");
+                video.src = hlsUrl;
+                setupVideoEvents();
+                return;
+            }
+
+            const hls = new Hls({
+                startLevel: -1,
+                capLevelToPlayerSize: true,
+                maxBufferLength: 30,
+                maxMaxBufferLength: 600,
+                enableWorker: true,
+            });
+
+            self._hls = hls;
+            hls.loadSource(hlsUrl);
+            hls.attachMedia(video);
+
+            // Primary quality detection
+            hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                console.log("[LMS] MANIFEST_PARSED fired");
+                populateQualities(hls);
+
+                if (self.currentPosition > 0) {
+                    video.currentTime = self.currentPosition;
+                }
+            });
+
+            // Backup quality detection (some streams report levels later)
+            hls.on(Hls.Events.LEVEL_LOADED, () => {
+                if (!self._qualitiesDetected && hls.levels && hls.levels.length >= 1) {
+                    console.log("[LMS] LEVEL_LOADED fallback quality detection");
+                    populateQualities(hls);
+                }
+            });
+
+            // Auto-quality level switch notification
+            hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
+                const level = hls.levels[data.level];
+                if (self._hls && self._hls.currentLevel === -1) {
+                    self.callbacks.onQualityChange &&
+                        self.callbacks.onQualityChange("auto");
+                } else if (level) {
+                    const label = level.height ? level.height + "p" : "auto";
+                    self._currentQuality = label;
+                    self.callbacks.onQualityChange &&
+                        self.callbacks.onQualityChange(label);
+                }
+            });
+
+            // Error recovery
+            hls.on(Hls.Events.ERROR, (event, data) => {
+                console.warn("[LMS] HLS error:", data.type, data.details, "fatal:", data.fatal);
+                if (data.fatal) {
+                    if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                        hls.startLoad();
+                    } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                        hls.recoverMediaError();
+                    } else {
+                        self.callbacks.onError && self.callbacks.onError();
+                    }
+                }
+            });
+
+            setupVideoEvents();
+        });
+    }
+
     // ── HTML5 ─────────────────────────────────────────────────────────────
     _init_html5() {
         const video = document.createElement("video");
@@ -1732,6 +1968,7 @@ class VideoEngine {
     _checkAntiSkip(pos) {
         if (pos > this.maxWatchedPosition + 5) {
             this._setPositionInternal(this.maxWatchedPosition);
+            this.callbacks.onSkipBlocked && this.callbacks.onSkipBlocked();
         }
     }
 
@@ -1773,7 +2010,7 @@ class VideoEngine {
             this.ytPlayer.seekTo(clamped, true);
         } else if (this.playerType === "vimeo" && this.vimeoPlayer) {
             this.vimeoPlayer.setCurrentTime(clamped).catch(() => {});
-        } else if (this.playerType === "html5" && this.htmlVideo) {
+        } else if (this.htmlVideo) {
             this.htmlVideo.currentTime = clamped;
         }
     }
@@ -1881,7 +2118,10 @@ class VideoEngine {
             tiny: "144p",
             auto: "Avto",
         };
-        return map[q] || q;
+        if (map[q]) return map[q];
+        // HLS/Cloudflare labels are already readable (e.g. "1080p")
+        if (q === "auto") return "Avto";
+        return q;
     }
 
     _detectYouTubeQualities() {
@@ -1898,9 +2138,21 @@ class VideoEngine {
     setQuality(quality) {
         this._currentQuality = quality;
         if (this.playerType === "youtube" && this.ytPlayer) {
+            // "auto" = let YouTube's ABR decide; any explicit choice is locked
+            // and re-asserted if YT's ABR tries to downgrade it.
+            this._manualQuality = quality === "auto" ? null : quality;
+            this._qualityRetryCount = 0;
+            this._qualityResetPending = false;
             this.ytPlayer.setPlaybackQuality(quality);
         } else if (this.playerType === "vimeo" && this.vimeoPlayer) {
             this.vimeoPlayer.setQuality(quality).catch(() => {});
+        } else if (this.playerType === "cloudflare" && this._hls) {
+            if (this._qualityMap && quality in this._qualityMap) {
+                // Use pre-built label→index map for reliable switching
+                this._hls.currentLevel = this._qualityMap[quality];
+            } else if (quality === "auto") {
+                this._hls.currentLevel = -1;
+            }
         }
     }
 
@@ -1925,6 +2177,10 @@ class VideoEngine {
             try { this.vimeoPlayer.pause().catch(() => {}); } catch (_) {}
             try { this.vimeoPlayer.destroy().catch(() => {}); } catch (_) {}
             this.vimeoPlayer = null;
+        }
+        if (this._hls) {
+            try { this._hls.destroy(); } catch (_) {}
+            this._hls = null;
         }
         if (this.htmlVideo) {
             this.htmlVideo.pause();
@@ -2380,6 +2636,35 @@ function _ensureVimeoAPI() {
         s.src = "https://player.vimeo.com/api/player.js";
         s.onload = resolve;
         document.head.appendChild(s);
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// HLS.JS LOADER  (Cloudflare Stream / generic HLS)
+// ═══════════════════════════════════════════════════════════════
+
+window._lms_hls_loading = false;
+window._lms_hls_callbacks = [];
+
+function _ensureHlsJS() {
+    return new Promise((resolve) => {
+        if (window.Hls) { resolve(); return; }
+        window._lms_hls_callbacks.push(resolve);
+        if (!window._lms_hls_loading) {
+            window._lms_hls_loading = true;
+            const s = document.createElement("script");
+            s.src = "https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js";
+            s.onload = () => {
+                window._lms_hls_callbacks.forEach((cb) => cb());
+                window._lms_hls_callbacks = [];
+            };
+            s.onerror = () => {
+                window._lms_hls_loading = false;
+                window._lms_hls_callbacks.forEach((cb) => cb());
+                window._lms_hls_callbacks = [];
+            };
+            document.head.appendChild(s);
+        }
     });
 }
 
