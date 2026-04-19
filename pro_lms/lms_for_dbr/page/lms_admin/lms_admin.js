@@ -50,20 +50,28 @@ function _forceFullWidth() {
 	const selectors = [
 		'.page-content',
 		'.page-content .container',
+		'.page-content .container-fluid',
 		'.page-content .page-container',
+		'.page-content .page-wrapper',
+		'.page-content .page-body',
 		'.page-content .layout-main',
 		'.page-content .layout-main-section-wrapper',
 		'.page-content .layout-main-section',
+		'.page-content .main-section',
+		'.page-content .row',
 		'.layout-main',
+		'.layout-main-section-wrapper',
+		'.main-column',
+		'.main-section',
 	];
 	selectors.forEach(sel => {
 		document.querySelectorAll(sel).forEach(el => {
-			el.style.maxWidth     = '100%';
-			el.style.width        = '100%';
-			el.style.paddingLeft  = '0';
-			el.style.paddingRight = '0';
-			el.style.marginLeft   = '0';
-			el.style.marginRight  = '0';
+			el.style.setProperty('max-width', '100%', 'important');
+			el.style.setProperty('width', '100%', 'important');
+			el.style.setProperty('padding-left', '0', 'important');
+			el.style.setProperty('padding-right', '0', 'important');
+			el.style.setProperty('margin-left', '0', 'important');
+			el.style.setProperty('margin-right', '0', 'important');
 		});
 	});
 }
@@ -82,7 +90,7 @@ function _setTheme(theme) {
 		'position:fixed', 'inset:0', 'z-index:99999',
 		'pointer-events:none', 'opacity:0',
 		'transition:opacity 120ms ease',
-		`background:${theme === 'dark' ? '#060C18' : '#EFF2F7'}`
+		`background:${theme === 'dark' ? '#0F1115' : '#FAFAFA'}`
 	].join(';');
 	document.body.appendChild(overlay);
 
@@ -196,15 +204,30 @@ class LMSAdmin {
 		const wrap = document.createElement('div');
 		wrap.className = 'lms-admin-wrap';
 
-		// ── TOP BAR ──────────────────────────────────────────────────────
-		const topBar = document.createElement('div');
-		topBar.style.cssText = 'display:flex;justify-content:flex-end;margin-bottom:16px;gap:8px;align-items:center;';
+		// ── PAGE HEADER (title + actions) ───────────────────────────────
+		const header = document.createElement('div');
+		header.className = 'lms-page-header';
+
+		const titleWrap = document.createElement('div');
+		titleWrap.className = 'lms-page-title-wrap';
+		const title = document.createElement('div');
+		const h1 = document.createElement('h1');
+		h1.className = 'lms-page-title';
+		h1.textContent = 'LMS Admin';
+		const sub = document.createElement('div');
+		sub.className = 'lms-page-subtitle';
+		sub.textContent = 'Topshiriqlar, baholash va hodimlar progressini boshqarish';
+		title.appendChild(h1);
+		title.appendChild(sub);
+		titleWrap.appendChild(title);
+
+		const actions = document.createElement('div');
+		actions.className = 'lms-page-actions';
 
 		// Density toggle
 		const densityBtn = document.createElement('button');
 		densityBtn.id        = 'lms-density-btn';
 		densityBtn.className = 'lms-btn lms-btn-sm lms-btn-secondary';
-		densityBtn.style.cssText = 'border-radius:99px;font-size:12px;';
 		densityBtn.title     = 'Compact / Normal ko\'rinish';
 		densityBtn.textContent = '⊟ Compact';
 
@@ -224,8 +247,8 @@ class LMSAdmin {
 
 		// CSV export button
 		const csvBtn = document.createElement('button');
+		csvBtn.id        = 'lms-csv-btn';
 		csvBtn.className = 'lms-btn lms-btn-sm lms-btn-secondary';
-		csvBtn.style.cssText = 'border-radius:99px;font-size:12px;';
 		csvBtn.title     = 'Jadvalni CSV formatda yuklab olish';
 		csvBtn.textContent = '⬇ CSV';
 		csvBtn.addEventListener('click', () => {
@@ -236,7 +259,6 @@ class LMSAdmin {
 		const themeBtn = document.createElement('button');
 		themeBtn.id          = 'lms-theme-toggle';
 		themeBtn.className   = 'lms-btn lms-btn-sm lms-btn-secondary';
-		themeBtn.style.cssText = 'border-radius:99px;min-width:42px;font-size:12px;padding:5px 13px;';
 		themeBtn.title       = 'Dark / Light mode (Alt+D)';
 		const isDark         = _getCurrentTheme() === 'dark';
 		themeBtn.textContent = isDark ? '☀️ Light' : '🌙 Dark';
@@ -258,10 +280,12 @@ class LMSAdmin {
 			}
 		});
 
-		topBar.appendChild(densityBtn);
-		topBar.appendChild(csvBtn);
-		topBar.appendChild(themeBtn);
-		wrap.appendChild(topBar);
+		actions.appendChild(densityBtn);
+		actions.appendChild(csvBtn);
+		actions.appendChild(themeBtn);
+		header.appendChild(titleWrap);
+		header.appendChild(actions);
+		wrap.appendChild(header);
 
 		// ── KPI GRID ─────────────────────────────────────────────────────
 		const kpiGrid = document.createElement('div');
